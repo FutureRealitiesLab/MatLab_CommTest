@@ -26,8 +26,10 @@ godotPort    = 4242;
 gridSize     = 32;                % 32x32x32 Werte
 targetFPS    = 20;                % Ziel-Sendefrequenz (Volumen/s)
 sendAsUint8  = false;             % true: 0..255 statt float32 (4x kleiner)
-maxPayload   = 1400;              % Nutzbytes pro Datagramm (1400: keine IP-Fragmentierung im WLAN;
-                                  % bis 60000 moeglich = weniger, schnellere write()-Aufrufe)
+maxPayload   = 60000;             % Nutzbytes pro Datagramm (max. ~65000). Jeder write() kostet in
+                                  % MATLAB ~10 ms -> wenige grosse Pakete sind viel schneller.
+                                  % Bei Paketverlust im WLAN auf 1400 (MTU) senken, dann keine
+                                  % IP-Fragmentierung, aber ~94 Pakete/Frame und langsamer.
 
 %% Setup
 MAGIC = uint16(hex2dec('4456'));

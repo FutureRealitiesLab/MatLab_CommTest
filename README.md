@@ -19,7 +19,7 @@ godot/                       Godot-4-Projekt (Rechner 192.168.50.166)
 
 ## Paketformat
 
-Ein UDP-Datagramm darf höchstens 65 507 Byte Nutzdaten enthalten. Ein 32³-Float32-Feld hat 32³ × 4 = **131 072 Byte (128 KB)** und passt daher **nicht** in ein Datagramm. Deshalb wird jedes Volumen in Chunks von max. 1400 Byte zerlegt (unter der WLAN-MTU von ~1500, keine IP-Fragmentierung), jeweils mit 16 Byte Header (little-endian):
+Ein UDP-Datagramm darf höchstens 65 507 Byte Nutzdaten enthalten. Ein 32³-Float32-Feld hat 32³ × 4 = **131 072 Byte (128 KB)** und passt daher **nicht** in ein Datagramm. Deshalb wird jedes Volumen in Chunks zerlegt (Standard `maxPayload = 60000` = 3 Pakete; 1400 bleibt unter der WLAN-MTU, braucht aber ~94 Pakete und ist in MATLAB ca. 30x langsamer, da jeder `write` ~10 ms kostet), jeweils mit 16 Byte Header (little-endian):
 
 | Offset | Typ    | Inhalt                            |
 |-------:|--------|-----------------------------------|
