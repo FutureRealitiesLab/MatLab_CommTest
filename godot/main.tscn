@@ -1,10 +1,11 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=13 format=3]
 
 [ext_resource type="Shader" path="res://volume_raymarch.gdshader" id="1_shader"]
 [ext_resource type="Script" path="res://udp_receiver.gd" id="2_udp"]
 [ext_resource type="Script" path="res://orbit_camera.gd" id="3_orbit"]
 [ext_resource type="Script" path="res://debug_overlay.gd" id="4_debug"]
 [ext_resource type="Script" path="res://box_outline.gd" id="5_outline"]
+[ext_resource type="Shader" path="res://heightmap.gdshader" id="6_height"]
 
 [sub_resource type="Environment" id="Environment_1"]
 background_mode = 1
@@ -22,6 +23,16 @@ shader_parameter/threshold = 0.05
 [sub_resource type="BoxMesh" id="BoxMesh_1"]
 size = Vector3(1, 1, 1)
 
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_2"]
+shader = ExtResource("6_height")
+shader_parameter/value_min = 0.0
+shader_parameter/value_max = 1.0
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_1"]
+size = Vector2(1, 1)
+subdivide_width = 62
+subdivide_depth = 62
+
 [node name="Main" type="Node3D"]
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
@@ -36,13 +47,22 @@ current = true
 script = ExtResource("3_orbit")
 distance = 7.0
 
-[node name="Volume" type="MeshInstance3D" parent="."]
+[node name="Volume" type="MeshInstance3D" parent="." node_paths=PackedStringArray("heightmap", "outline")]
 transform = Transform3D(3.5, 0, 0, 0, 3.5, 0, 0, 0, 3.5, 0, 0, 0)
 material_override = SubResource("ShaderMaterial_1")
 mesh = SubResource("BoxMesh_1")
 script = ExtResource("2_udp")
+heightmap = NodePath("../Heightmap")
+outline = NodePath("../Outline")
 
-[node name="Outline" type="MeshInstance3D" parent="Volume"]
+[node name="Heightmap" type="MeshInstance3D" parent="."]
+transform = Transform3D(3.5, 0, 0, 0, 1.75, 0, 0, 0, 3.5, 0, 0, 0)
+visible = false
+material_override = SubResource("ShaderMaterial_2")
+mesh = SubResource("PlaneMesh_1")
+
+[node name="Outline" type="MeshInstance3D" parent="."]
+transform = Transform3D(3.5, 0, 0, 0, 3.5, 0, 0, 0, 3.5, 0, 0, 0)
 script = ExtResource("5_outline")
 
 [node name="DebugLayer" type="CanvasLayer" parent="."]
