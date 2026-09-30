@@ -1,0 +1,64 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Shader" path="res://volume_raymarch.gdshader" id="1_shader"]
+[ext_resource type="Script" path="res://udp_receiver.gd" id="2_udp"]
+[ext_resource type="Script" path="res://orbit_camera.gd" id="3_orbit"]
+[ext_resource type="Script" path="res://debug_overlay.gd" id="4_debug"]
+
+[sub_resource type="Environment" id="Environment_1"]
+background_mode = 1
+background_color = Color(0.04, 0.05, 0.08, 1)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_1"]
+shader = ExtResource("1_shader")
+shader_parameter/steps = 64
+shader_parameter/value_min = 0.0
+shader_parameter/value_max = 1.0
+shader_parameter/density_scale = 4.0
+shader_parameter/emission_gain = 2.0
+shader_parameter/threshold = 0.05
+
+[sub_resource type="BoxMesh" id="BoxMesh_1"]
+size = Vector3(1, 1, 1)
+
+[node name="Main" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_1")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866, -0.25, 0.433, 0, 0.866, 0.5, -0.5, -0.433, 0.75, 0, 3, 0)
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 4)
+current = true
+script = ExtResource("3_orbit")
+distance = 4.0
+
+[node name="Volume" type="MeshInstance3D" parent="."]
+transform = Transform3D(2, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0)
+material_override = SubResource("ShaderMaterial_1")
+mesh = SubResource("BoxMesh_1")
+script = ExtResource("2_udp")
+
+[node name="DebugLayer" type="CanvasLayer" parent="."]
+
+[node name="Root" type="Control" parent="DebugLayer"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Stats" type="Label" parent="DebugLayer/Root"]
+layout_mode = 0
+offset_left = 12.0
+offset_top = 12.0
+offset_right = 320.0
+offset_bottom = 200.0
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+script = ExtResource("4_debug")
+receiver_path = NodePath("../../../Volume")
