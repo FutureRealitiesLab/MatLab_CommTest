@@ -1,126 +1,112 @@
-# MatLab_CommTest: MATLAB → Godot 4 per UDP (WLAN)
+# MatLab_CommTest: MATLAB → Godot 4 per UDP
 
-Echtzeit-Kopplung: MATLAB berechnet ein zeitveränderliches 2D- oder 3D-Feld und sendet es per UDP an Godot 4. Godot stellt 3D-Felder als Volumen (Raymarching) und 2D-Felder als Höhenkarte dar. Langfristiges Ziel: VR-Simulator.
+Echtzeit-Kopplung: MATLAB berechnet zeitveränderliche Felder, Partikel oder Zellularautomaten und sendet sie per UDP an Godot 4. Godot stellt sie in einer gemeinsamen Plotbox `[0 1]^3` dar (Bild, Höhenfläche, Schnitte, Volumen, Pfeile, Partikel, Automat auf Ebene/Kugel/Torus). Langfristiges Ziel: VR-Simulator (siehe [docs/plan.md](docs/plan.md)).
 
-Studierende schreiben nur ihre eigene Simulationsschleife und rufen `send_via_udp(field)` auf. Der Rest bleibt unverändert.
+Das Protokoll ist **typisiert**: Ein vierstelliger Magic-String (z. B. `S3v.`, `V2q0`, `P2p1`, `C2m2`) wählt Datenformat und Darstellung. Studierende schreiben nur ihre Simulationsschleife und rufen `udpSend(u, data, frameid)` auf.
 
 ```
-matlab/
-  send_via_udp.m           Senden (Quantisierung, Chunking, Header, Konfiguration)
-  udp_config.m             Feste Godot-IP (192.168.50.166), Port, Payload-Größe
-  simulate_field.m         Beispiel 3D-Volumen
-  simulate_surface.m       Beispiel 2D-Höhenkarte
+matlab/udp/
+  udpOpen.m        Sender anlegen (Magic, Ziel-IP, Port, Wertebereich)
+  udpSend.m        Frame senden (Quantisierung, Chunking, Header, ein write() pro Frame)
+  udpListen.m      MATLAB-Betrachter (udpReceive + udpDrawnow)
+  udpReceive.m     Frames empfangen und dekodieren
+  udpDrawnow.m     Darstellung in MATLAB
+  test2d.m, test3d.m, udpTest.m, testProtocol.m   Beispiele und Tests
+  README.md        Bedienung des Senders und der MATLAB-Betrachter (englisch)
+  PROTOCOL.md      Paketformat (englisch, maßgeblich)
+  HEADER_SESSION.md  Session-ID
 godot/
   project.godot, main.tscn
-  udp_receiver.gd          UDP-Empfang, Chunk-Zusammenbau, Texturen, Konfiguration
-  volume_raymarch.gdshader Volumen-Shader (3D)
-  heightmap.gdshader       Höhenkarten-Shader (2D)
-  colormap.gdshaderinc     Farbskalen (rainbow, hot, gray, viridis)
-  box_outline.gd           Kanten-Wireframe
-  orbit_camera.gd          Orbit-Kamera (LMB drehen, Mausrad zoomen)
-  debug_overlay.gd         Pakete/s, FPS, Frame-Größe, Gitter, Wertebereich
+  udp_receiver.gd  UDP-Empfang, Session-/Frame-Logik, Chunk-Zusammenbau, Warteschlange
+  scene_view.gd    Darstellung je Magic (Ebenen), Einpassen in die Plotbox
+  field_image.gdshader, field_height.gdshader, field_slice.gdshader, volume_raymarch.gdshader
+  colormap.gdshaderinc   Farbskalen (rainbow, hot, gray, viridis)
+  box_outline.gd, orbit_camera.gd, debug_overlay.gd
+  selftest.gd      Test ohne Netzwerk
+docs/
+  plan.md          Architektur MATLAB → Server-PC → Brillen (Planung)
 ```
+
+> **Veraltet:** `matlab/send_via_udp.m`, `udp_config.m`, `simulate_field.m` und `simulate_surface.m` gehören zum alten Protokoll v2 (Magic `0x4456`, Konfigurationspakete). Der neue Godot-Empfänger versteht dieses Format **nicht** mehr. Für neue Simulationen `matlab/udp/` verwenden.
 
 ## Schnellstart
 
-1. **Godot** (4.3+): `godot/project.godot` importieren und starten (F5). Das Overlay zeigt "lauscht" auf Port 4242.
-2. **MATLAB** (anderer Rechner): `matlab/` zum Pfad hinzufügen, `simulate_field.m` (3D) oder `simulate_surface.m` (2D) ausführen. Abbruch mit Strg+C.
-
-## `send_via_udp` verwenden
+1. **Godot 4.7**: `godot/project.godot` importieren und starten (F5). Das Overlay zeigt "lauscht" auf Port 4242.
+2. **MATLAB**: `matlab/udp/` zum Pfad hinzufügen und senden:
 
 ```matlab
-send_via_udp(field)                                    % 2D [nx ny] oder 3D [nx ny nz]
-send_via_udp(field, 'Range',[0 1], 'ColorMap','viridis', 'Title','Meine Simulation')
-info = send_via_udp(field);                            % info.bytes, info.packets, info.seconds
+u = udpOpen(magic="S3v.", address="127.0.0.1", port=4242, vspan=[0 1]);
+for t = 1:1000
+    field = ...;              % [ny nx nz], Werte im Bereich vspan
+    udpSend(u, field, t);     % t = aufsteigende Frame-ID
+    pause(1/20);
+end
 ```
 
-Dimension 1 = x, 2 = y, 3 = z. Die Gittergröße darf sich zur Laufzeit ändern und muss nicht kubisch sein (max. 512 pro Dimension). 2D-Felder (`nz = 1`) werden als **Höhenkarte** gezeigt, 3D-Felder als **Volumen**.
+Zwei Rechner: `address` auf die IPv4-Adresse des Godot-Rechners setzen und dort eingehend UDP-Port 4242 in der Firewall freigeben. `udpTest` sendet nacheinander alle Magics (je 5 s), um den Betrachter zu prüfen.
 
-| Option | Bedeutung |
+## Magics und Eingabeformate
+
+| `magic` | Darstellung | MATLAB-Eingabe |
+|---|---|---|
+| `S2i.` | Skalarfeld als Bild | `[ny nx]` |
+| `S2s.` | Skalarfeld als Höhenfläche | `[ny nx]` |
+| `S3i<n>` | `n` Schnitte entlang z (`0`: drei Mittelschnitte) | `[ny nx nz]` |
+| `S3v.` | Volumen (Raymarching) | `[ny nx nz]` |
+| `V2q<k>` / `V3q<k>` | Pfeile (`k` = 0 automatisch, sonst Pfeillänge in Zellen) | `[ny nx 1 2]` / `[ny nx nz 3]` |
+| `P2p<x>` / `P3p<x>` | Partikelart `x` (eigene Farbe, Geschwindigkeitspfeile bei 4/6 Spalten) | `[N 2\|3\|4\|6]` |
+| `C2i.` | Zellularautomat als Bild | `[ny nx]` |
+| `C2m<0\|1\|2>` | Automat auf Ebene / Kugel / Torus | `[ny nx]` |
+| `T...` | reserviert (Verkehr) | nicht umgesetzt |
+
+Wichtig:
+- **Achsen:** Dimension 1 = y (`ny`), Dimension 2 = x (`nx`), Dimension 3 = z, wie bei MATLAB-`imagesc`. Die Daten werden spaltenweise (`data(:)`) gesendet.
+- **Wertebereich:** `vspan=[vmin vmax]` gilt für alle S/V-Komponenten. Die Werte werden abgeschnitten und auf 0..255 quantisiert. Partikel gehen unquantisiert als `float32`, Positionen normiert auf 0..1. Automaten werden mit 1, 2, 4 oder 8 Bit pro Zustand gepackt (`nostates`).
+- **Ebenen:** Jeder Magic ergibt eine eigene Ebene in der Plotbox (bei `P` je Art). Zwei Datensätze derselben Simulation brauchen **eigene, aufsteigende Frame-IDs** (z. B. 1, 3, 5 Dichte und 2, 4, 6 Vektoren).
+- **Einpassen:** Alle Daten werden mit einem einheitlichen Faktor ohne Verzerrung in `[0 1]^3` eingepasst.
+
+## Paketformat (Kurzfassung)
+
+Jedes Datagramm beginnt mit 20 Byte (little-endian): Magic (4 Byte ASCII), Session-ID, Frame-ID, Chunk-Index und Chunk-Anzahl (je uint32). Danach folgt je nach `magic(1)` ein Zusatz-Header (S/V: 52 Byte gesamt, P: 28, C: 33) und die Nutzdaten. Das vollständige Format steht in [matlab/udp/PROTOCOL.md](matlab/udp/PROTOCOL.md).
+
+- **Session-ID:** `udpOpen` erzeugt pro Lauf eine neue Session-ID. Godot verwirft bei einer neuen ID den alten Zustand und ignoriert späte Pakete der letzten 32 alten Sessions. Eine neu gestartete Simulation wird daher sofort angezeigt, auch wenn die Frame-ID wieder bei 0 beginnt.
+- **Frame-ID:** Innerhalb einer Session werden nur Frames mit einer größeren ID als der letzten fertigen angenommen. Unvollständige Frames werden verworfen (Overlay: "Verworfen"), sobald ein neueres kommt.
+- **Warteschlange:** Fertige Frames kommen in eine Warteschlange, pro Magic bleibt nur das neueste. Pro Godot-Frame wird ein Frame dargestellt.
+- **Chunking:** `udpSend` baut alle Datagramme in einem Puffer und ruft `write()` **einmal pro Frame** auf. `datagramSize` (Standard 65000, Bereich 1000..65000) ist die gesamte UDP-Nutzlast inklusive Header.
+
+## Bedienung in Godot
+
+| Taste | Wirkung |
 |---|---|
-| `'Range',[vmin vmax]` | Werte werden auf 0..255 abgebildet, außerhalb wird abgeschnitten (Standard `[0 1]`) |
-| `'Autoscale',true` | Range pro Frame aus min/max (Farben können flackern) |
-| `'ColorMap'` | `rainbow`, `hot`, `gray`, `viridis` |
-| `'Extent',[x y z]` | Größe in Godot-Metern (bei 2D ist z die Höhe) |
-| `'Density'`, `'Threshold'` | Deckkraft und Schwellwert des Volumens |
-| `'Interpolate',true/false` | Zeitliche Überblendung in Godot |
-| `'Title'` | Text im Overlay |
-| `'Format'` | `"uint8"` (Standard) oder `"single"` |
+| Linke Maustaste ziehen, Mausrad | Orbit-Kamera drehen und zoomen |
+| `C` | Colormap wechseln (rainbow, hot, gray, viridis) |
+| `F3` | Overlay ein-/ausblenden (Pakete/s, Frames/s, Frame-Größe, Verworfen, Session, Magic, Ebenen) |
 
-## Auflösung vs. FPS
+Port und Bind-Adresse stehen an der Node `Receiver` (`port`, `bind_address`, `recv_buffer_size`). Es ist IPv4 gebunden (`0.0.0.0`).
 
-Begrenzend ist der MATLAB-Sender: ein `write` kostet ca. 10 ms bei bis zu ~60 KB pro Datagramm, das sind rund 6 MB/s (dazu kommt die Rechenzeit der Simulation).
+## Tests
 
-| Gitter (uint8) | Bytes/Frame | Pakete | realistische FPS |
-|---|---|---|---|
-| 32³ | 32 KB | 1 | 30–60 |
-| 64³ | 256 KB | 5 | ca. 15–20 |
-| 128³ | 2 MB | 35 | ca. 2–3 |
+- **Godot ohne Netzwerk:** prüft Empfänger (Chunks, Warteschlange, Session, ungültige Header, Bit-Packen) und zeichnet jeden Magic zweimal (Neuaufbau und Update).
+  ```
+  Godot --headless --path godot --script res://selftest.gd
+  ```
+- **MATLAB Loopback:** `testProtocol` prüft alle Formate und die Frame-Warteschlange.
+- **Zusammenspiel:** Godot starten, in MATLAB `udpTest` ausführen und im Overlay "Magic" und "Ebenen" beobachten.
 
-- **Wenig Auflösung, viele FPS:** flüssig, robust (1 Paket), grobe Voxel. Empfohlen: 32³–48³ bei 20–30 FPS.
-- **Viel Auflösung, wenige FPS:** feine Struktur, aber ruckelig und anfälliger für Paketverlust (große Fragmente). Ab ca. 96³ im WLAN unpraktisch.
-- **Interpolation in Godot** (Standard an): Godot hält den vorigen und den aktuellen Frame und blendet dazwischen über das gemessene Frame-Intervall. Das glättet niedrige Sende-FPS bei glatten Feldern, kostet aber eine Frame-Periode Latenz. Bei schnell bewegten Strukturen entsteht Überblendung statt echter Bewegung.
+## Auflösung und Datenrate
 
-## Paketformat (Version 2, little-endian)
+Begrenzend ist meist der MATLAB-Sender: Ein `write()` kostet etwa 10 ms je Datagramm von bis zu 65 kB. Große Datagramme werden im WLAN in ~1500-Byte-Fragmente zerlegt, geht eines verloren, ist das ganze Datagramm weg. Bei vielen "Verworfen" im Overlay `datagramSize` senken, das Gitter verkleinern, die Sendefrequenz senken oder 5-GHz-WLAN bzw. Kabel nutzen. Richtwerte (uint8, 1 Byte/Voxel): 32³ = 32 KB/Frame, 64³ = 256 KB/Frame, 128³ = 2 MB/Frame.
 
-**Datenpaket**, 32 Byte Header + Payload. Passt ein Feld nicht in ein Datagramm (`maxPayload = 60000`), wird es automatisch in gleich große Chunks geteilt; sonst ist es ein einziges Paket.
+## Netzwerk-Tipps
 
-| Offset | Typ | Inhalt |
-|---:|---|---|
-| 0 | uint16 | Magic `0x4456` |
-| 2 | uint8 | Version = 2 |
-| 3 | uint8 | Format: 0 = float32, 1 = uint8 |
-| 4 | uint32 | Frame-ID |
-| 8 | uint16 | Chunk-Index (ab 0) |
-| 10 | uint16 | Chunk-Anzahl |
-| 12 / 14 / 16 | uint16 | nx / ny / nz |
-| 18 | uint16 | reserviert |
-| 20 / 24 | float32 | vmin / vmax (Wertebereich der uint8-Skalierung) |
-| 28 | uint32 | reserviert |
-
-Payload: `field(:)` (x schnellster Index, dann y, dann z). Unvollständige Frames werden verworfen ("Verworfen" im Overlay), das nächste Frame ersetzt sie.
-
-**Konfigurationspaket:** Magic `0x4643` (uint16), danach ein JSON-Text (UTF-8), z. B. `{"colormap":"hot","extent":[3,3,2],"interpolate":true,"title":"..."}`. Erlaubte Schlüssel: `colormap`, `extent`, `density`, `threshold`, `interpolate`, `title`. `send_via_udp` sendet es bei Änderung sofort, sonst alle 2 s erneut (falls Godot später startet).
-
-**Ein Absender gleichzeitig:** Godot nimmt Pakete nur vom zuerst aktiven Absender an (nach 2 s Stille darf ein anderer übernehmen). Das Overlay zählt ignorierte Pakete unter "Fremd".
-
-## WLAN- und Netzwerk-Tipps
-
-### 1. IP-Adresse ermitteln
-
-Godot-Rechner (Empfänger), hier `192.168.50.166`:
-
-```powershell
-# Windows
-ipconfig            # Eintrag "IPv4-Adresse" des WLAN-Adapters
-```
-```bash
-# macOS
-ifconfig | grep "inet "
-# Linux
-ip a
-```
-
-Diese IP muss in `matlab/udp_config.m` als `godotIP` stehen. Beide Rechner müssen im selben Subnetz sein (`192.168.50.x`). Bei manchen Routern isoliert "AP/Client-Isolation" WLAN-Geräte voneinander; dann kommt nichts an, bis sie ausgeschaltet wird. Test: `ping 192.168.50.166` vom MATLAB-Rechner.
-
-### 2. Firewall
-
-- **Godot-Rechner:** eingehenden UDP-Port 4242 freigeben. Windows (Admin-PowerShell):
+- **IP des Godot-Rechners:** `ipconfig` (Windows), `ifconfig` (macOS), `ip a` (Linux). Beide Rechner im selben Subnetz. "AP/Client-Isolation" im Router ausschalten. Test: `ping <Godot-IP>`.
+- **Firewall (Godot-Rechner):** eingehend UDP 4242 freigeben, in einer Admin-PowerShell:
   ```powershell
   New-NetFirewallRule -DisplayName "Godot UDP 4242" -Direction Inbound -Protocol UDP -LocalPort 4242 -Action Allow
   ```
-  Alternativ die Windows-Abfrage beim ersten Start von Godot mit "Zugriff zulassen" (auch für *Private Netzwerke*) bestätigen.
-- **MATLAB-Rechner:** ausgehender UDP-Verkehr ist normalerweise erlaubt.
+- **Nur ein Programm pro Port:** `udpListen` (MATLAB) und der Godot-Betrachter können nicht gleichzeitig auf Port 4242 hören.
+- **Empfangspuffer:** In Godot 4 MB (`recv_buffer_size`).
 
-### 3. Paketgröße, MTU und Paketverluste
+## Projektstand und Ausblick
 
-- Ein UDP-Datagramm darf max. 65 507 Byte haben. Große Datagramme werden im WLAN in ~1500-Byte-Fragmente zerlegt; geht eines verloren, ist das ganze Datagramm weg.
-- Bei vielen "Verworfen" im Overlay: `maxPayload` in `udp_config.m` senken (z. B. 1400, dann keine Fragmentierung, aber ~46× mehr Pakete und in MATLAB deutlich langsamer), das Gitter verkleinern oder die FPS senken. 5-GHz-WLAN oder LAN-Kabel helfen ebenfalls.
-- MATLABs `udpport` schneidet `write`-Aufrufe standardmäßig bei 512 Byte (`OutputDatagramSize`) in mehrere Datagramme. `send_via_udp` setzt den Wert passend.
-- Der Empfangspuffer in Godot ist 4 MB groß (`recv_buffer_size`).
-
-## Anpassungen in Godot
-
-- Shader-Parameter (Schrittzahl, Dichte, Schwelle, Emission) am Material der Node `Volume`; `interpolate` und `allow_remote_config` an der Node `Volume` im Inspector.
-- Port: `port` an der Node `Volume` (Godot) und `godotPort` in `udp_config.m`.
-- VR-Erweiterung geplant: Mit dem OpenXR-Vendors-Plugin (Quest) nutzt der Shader `CAMERA_POSITION_WORLD` pro Auge; der Raymarch-Aufbau funktioniert dafür unverändert.
+Das Godot-Projekt nutzt den `mobile`-Renderer (Vulkan) und ist als Godot 4.7 gespeichert. Das Zielsystem (Hyper-Irrealismus III) verwendet laut [docs/plan.md](docs/plan.md) Godot 4.6 mit GL Compatibility. Beim Übernehmen in das VR-Template muss der Shader dort früh getestet werden. Dort gilt auch: Texturen als `R8` (uint8) verwenden. Die Architektur für Server und Brillen steht in [docs/plan.md](docs/plan.md).

@@ -1,4 +1,4 @@
-// Gemeinsame Farbskalen fuer Volumen- und Hoehenkarten-Shader.
+// Gemeinsame Farbskalen fuer alle Feld-Shader.
 // id: 0 = rainbow, 1 = hot, 2 = gray, 3 = viridis
 
 vec3 apply_colormap(float t, int id) {

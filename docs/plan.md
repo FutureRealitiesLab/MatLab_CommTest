@@ -15,7 +15,7 @@ Gelesen wurden die Notion-Seite "Technische Basis: Hyper-Irrealismus III Templat
 **Kabel-Hop reich, WLAN-Hop budgetiert. Der Server ist die einzige Datenquelle, die Brillen rendern selbst.**
 
 ```
-MATLAB (Kabel) --UDP, Protokoll v2, unverändert--> Server-PC (Kabel)
+MATLAB (Kabel) --UDP, typisiertes Protokoll (matlab/udp/PROTOCOL.md), unverändert--> Server-PC (Kabel)
    Server: Empfang + Frame-Zusammenbau (bestehende Logik), optional Downsampling/Kompression
    Server --ENet, eigener Kanal, Ack-Flusskontrolle, uint8-Skalarfeld (+Config)--> Brillen (WLAN)
    Brille: Textur (ImageTexture3D R8) + Raymarch-Shader + Interpolation lokal
@@ -51,14 +51,15 @@ Hebel: Auflösung senken, Sende-Hz senken (die Brille interpoliert lokal), zstd-
 1. **Eigener ENet-Transferkanal** für Volumendaten, damit Kopf- und Avatar-Posen (Kanal 0, `unreliable_ordered`) nicht hinter 256-KB-Frames hängen.
 2. **Ack-basierte Flusskontrolle je Client:** Der nächste Frame wird erst gesendet, wenn der Client den vorigen bestätigt hat. Sonst wächst der Rückstau bei langsamen Brillen. Es gilt "neuester Frame gewinnt", ältere werden verworfen.
 3. **Serverzeit im Frame** und ein Jitter-Puffer von einem Frame auf den Brillen, damit alle nahezu dasselbe Bild zeigen (Co-located: gemeinsame Realität).
-4. **Late Join:** Bei `peer_connected` werden der letzte Frame und die letzte Config geschickt. Die Config (Colormap, Extent, Titel) ist klein, reliable und server-autoritativ.
+4. **Late Join:** Bei `peer_connected` werden der letzte Frame je Magic und die Session-ID geschickt. Das neue Protokoll kennt keine Konfigurationspakete mehr; Magic und `vspan` stehen im Frame-Header, Colormap und Platzierung entscheidet die Brille bzw. die Szene. Die Session-ID erkennt einen MATLAB-Neustart, der Server setzt dann seinen Zustand und die Frame-Zähler der Clients zurück.
 5. **Renderer-Risiko (GL Compatibility, Focus Vision):** Das Raymarching ist der teuerste Teil (Pixel × Schritte × 2 Augen, plus zweites Sample für die Interpolation). Schritte auf ca. 24–32, frühes Abbrechen, Render-Scale wie im Template. Float32-Texturen mit linearem Filter sind auf Mobile nicht garantiert, daher **R8 (uint8) verwenden**. Shader und `ImageTexture3D.update()` früh auf der Zielhardware testen.
 6. **WLAN:** eigenes 5/6-GHz-Netz, WiFi-6-AP, Energiesparmodus der Brillen aus, kein anderer Verkehr.
 7. **Platzierung im gemeinsamen Raum:** Die Volumen-Transform steht in der Szene (`scene_hooks.gd` / `scene_info.cfg`), nicht im Datenstrom.
 
 ## Später umzusetzen (nicht jetzt)
 
-- Empfangslogik aus `godot/udp_receiver.gd` in eine wiederverwendbare `VolumeSource` auslagern (Server: UDP-Quelle, Client: ENet-Quelle).
+- Empfangslogik aus `godot/udp_receiver.gd` in eine wiederverwendbare `FrameSource` auslagern (Server: UDP-Quelle, Client: ENet-Quelle). Der Empfänger liefert bereits fertige Frames als Signal `frame_received(magic, info, payload)`, `godot/scene_view.gd` stellt sie dar; beide sind schon getrennt.
+- Das Protokoll ist nicht mehr nur ein Volumen: Skalar-, Vektorfelder, Partikel und Automaten haben andere Datenmengen (Partikel `float32`, Automaten bitgepackt). Bandbreitentabelle und Downsampling gelten für S/V, für P und C getrennt betrachten.
 - Autoload `SimulationRelay` im Hyper-Irrealismus-Projekt.
 - Szene `volume_display.tscn` (Volumen-Mesh + Shader), einbindbar über `scene_info.cfg`.
 - Eingebauter Testdaten-Generator in Godot, damit sich der Datenpfad ohne MATLAB prüfen lässt.

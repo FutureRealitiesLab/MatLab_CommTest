@@ -1,18 +1,14 @@
 shader_type spatial;
 // Raymarching durch ein 3D-Skalarfeld auf einem BoxMesh (lokal -0.5..0.5).
 // Rueckseiten werden gezeichnet, damit es auch mit der Kamera im Volumen funktioniert.
-// volume_prev/blend: zeitliche Ueberblendung zwischen dem vorigen und dem aktuellen Frame.
+// Die Textur ist [ny, nx, nz] (Breite ny, Hoehe nx), daher wird (x, y) vertauscht.
 render_mode unshaded, cull_front, depth_draw_never, blend_mix;
 
 #include "res://colormap.gdshaderinc"
 
 uniform sampler3D volume_tex : filter_linear, repeat_disable;
-uniform sampler3D volume_prev : filter_linear, repeat_disable;
-uniform float blend : hint_range(0.0, 1.0) = 1.0;
 uniform int colormap = 0;
 uniform int steps : hint_range(8, 128) = 64;
-uniform float value_min = 0.0;
-uniform float value_max = 1.0;
 uniform float density_scale : hint_range(0.0, 20.0) = 4.0;
 uniform float emission_gain : hint_range(0.0, 10.0) = 2.0;
 uniform float threshold : hint_range(0.0, 1.0) = 0.05;
@@ -48,19 +44,14 @@ void fragment() {
 	// Pixel-Jitter gegen Banding
 	float jitter = fract(sin(dot(FRAGCOORD.xy, vec2(12.9898, 78.233))) * 43758.5453);
 	float t = t_near + dt * jitter;
-	bool use_prev = blend < 0.999;
 
 	vec3 acc_rgb = vec3(0.0);
 	float acc_a = 0.0;
 
 	for (int i = 0; i < MAX_STEPS; i++) {
 		if (i >= steps || acc_a > 0.98) break;
-		vec3 uvw = ro + rd * t + 0.5;
-		float v = textureLod(volume_tex, uvw, 0.0).r;
-		if (use_prev) {
-			v = mix(textureLod(volume_prev, uvw, 0.0).r, v, blend);
-		}
-		float n = clamp((v - value_min) / (value_max - value_min), 0.0, 1.0);
+		vec3 p = ro + rd * t + 0.5;
+		float n = textureLod(volume_tex, vec3(p.y, p.x, p.z), 0.0).r;
 		if (n > threshold) {
 			// Absorption pro Schritt, unabhaengig von der Schrittzahl
 			float a = 1.0 - exp(-n * n * density_scale * dt * 4.0);

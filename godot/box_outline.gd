@@ -1,6 +1,6 @@
 extends MeshInstance3D
 ## Zeichnet die 12 Kanten eines Einheitswuerfels (-0.5..0.5) als Linien.
-## Als Kind der Volumen-Node erbt es deren Skalierung.
+## Die Node liegt in der Boxmitte; die Plotbox ist [0 1]^3.
 
 @export var color := Color(0.85, 0.9, 1.0, 1.0)
 
