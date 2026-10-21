@@ -2,7 +2,9 @@ shader_type spatial;
 // 2D-Feld auf einer Flaeche (Bild, CA auf Ebene/Kugel/Torus).
 // Die Textur hat die Breite ny und die Hoehe nx (MATLAB-Spaltenreihenfolge),
 // daher werden u (x) und v (y) beim Abtasten vertauscht.
-render_mode unshaded, cull_disabled;
+// Bewusst ohne ALPHA: Sonst wird das Material transparent (ohne Tiefenschreiben),
+// und bei Kugel und Torus verdecken Rueckseiten die Vorderseiten.
+render_mode unshaded, cull_disabled, depth_draw_opaque;
 
 #include "res://colormap.gdshaderinc"
 
@@ -10,7 +12,6 @@ uniform sampler2D tex : filter_linear, repeat_disable;
 uniform int colormap = 0;
 uniform float value_scale = 1.0;
 uniform bool nearest = false;
-uniform float alpha : hint_range(0.0, 1.0) = 1.0;
 // Gepackte CA-Zustaende: tex enthaelt die Payload-Bytes zeilenweise, die Zelle
 // (iy, ix) liegt spaltenweise bei Index iy + ny * ix.
 uniform bool packed_states = false;
@@ -39,5 +40,4 @@ void fragment() {
 		}
 	}
 	ALBEDO = apply_colormap(clamp(r * value_scale, 0.0, 1.0), colormap);
-	ALPHA = alpha;
 }

@@ -63,7 +63,7 @@ Wichtig:
 - **Achsen:** Dimension 1 = y (`ny`), Dimension 2 = x (`nx`), Dimension 3 = z, wie bei MATLAB-`imagesc`. Die Daten werden spaltenweise (`data(:)`) gesendet.
 - **Wertebereich:** `vspan=[vmin vmax]` gilt für alle S/V-Komponenten. Die Werte werden abgeschnitten und auf 0..255 quantisiert. Partikel gehen unquantisiert als `float32`, Positionen normiert auf 0..1. Automaten werden mit 1, 2, 4 oder 8 Bit pro Zustand gepackt (`nostates`).
 - **Ebenen:** Jeder Magic ergibt eine eigene Ebene in der Plotbox (bei `P` je Art). Zwei Datensätze derselben Simulation brauchen **eigene, aufsteigende Frame-IDs** (z. B. 1, 3, 5 Dichte und 2, 4, 6 Vektoren).
-- **Raum und Einpassen:** Der Boden misst 4 m (MATLAB-x, `nx`) × 8 m (MATLAB-y, `ny`) und ist um den Ursprung zentriert. MATLAB-z zeigt nach oben. **2D-Daten** (`S2i`, `S2s`, `V2q`, `P2p`, `C2i`, `C2m0`) liegen auf dem Boden. **3D-Daten** (`S3*`, `V3q`, `P3p`) sowie Kugel und Torus (`C2m1`, `C2m2`) liegen in einer 2 m hohen Box, die 0,5 m über dem Boden beginnt. Die Daten füllen die jeweilige Fläche bzw. Box und werden dabei verzerrt, wenn das Gitter ein anderes Seitenverhältnis hat. Mit `stretch = false` an der Node `View` wird stattdessen ohne Verzerrung eingepasst. Maße: `box_size` und `lift` an der Node `View`. Höhenflächen (`S2s`) steigen bis zur halben Boxhöhe (1 m).
+- **Raum und Einpassen:** Der Boden misst 4 m (MATLAB-x, `nx`) × 8 m (MATLAB-y, `ny`) und ist um den Ursprung zentriert. MATLAB-z zeigt nach oben. **2D-Daten** (`S2i`, `S2s`, `V2q`, `P2p`, `C2i`, `C2m0`) liegen auf dem Boden. **3D-Daten** (`S3*`, `V3q`, `P3p`) sowie Kugel und Torus (`C2m1`, `C2m2`) liegen in einer 2 m hohen Box, die 0,5 m über dem Boden beginnt. Die Daten füllen die jeweilige Fläche bzw. Box und werden dabei verzerrt, wenn das Gitter ein anderes Seitenverhältnis hat. Mit `stretch = false` an der Node `View` wird stattdessen ohne Verzerrung eingepasst. Maße: `box_size` und `lift` an der Node `View`. **Ausrichtung:** `room_rotation_deg` an `View` dreht den ganzen Raum um die Senkrechte (Standard 90°: die 8 m-Seite liegt entlang der Godot-x-Achse), um ihn zum echten Raum auszurichten. Später soll das serverseitig einstellbar sein. Höhenflächen (`S2s`) steigen bis zur halben Boxhöhe (1 m).
 
 ## Paketformat (Kurzfassung)
 
@@ -102,6 +102,41 @@ Die Controller werden als kleine Quader dargestellt. Der Startpunkt liegt auf de
 
 Aufbau: `godot/xr_rig.gd` liegt auf `XRRig` (XROrigin3D mit Kamera und zwei Controllern). Die Projekteinstellungen `xr/openxr/enabled` und `xr/shaders/enabled` sind gesetzt. Die Eingaben kommen aus der Standard-Action-Map von Godot (`primary` = Stick oder Trackpad).
 
+## APK für die Vive Focus Vision (Standalone)
+
+Das Projekt exportiert zwei APKs aus **demselben Code**. Sie unterscheiden sich nur im Feature-Tag und damit in der Steuerung:
+
+| Preset | Datei | Tag | Steuerung | Start |
+|---|---|---|---|---|
+| `Vive_Stationaer` | `godot/build/vive_stationaer.apk` | – | Fliegen per Controller (wie am PC) | 1,5 m vor der Längskante der 4 × 8 m-Fläche |
+| `Vive_LBE` | `godot/build/vive_lbe.apk` | `lbe` | **keine** Stick-Bewegung, nur Gehen im Raum | Raummitte (`roomscale_origin` an `XRRig`) |
+
+Das Skript `xr_rig.gd` fragt beim Start `OS.has_feature("lbe")` ab. Der Tag wird beim Export in die APK eingebrannt (Preset → Features → eigene Feature-Tags), die Brille muss nichts melden. Am PC und im Editor bleibt es beim Fliegen; die Konsole zeigt `XR: Locomotion FLY` bzw. `ROOMSCALE`.
+
+**Renderer:** Auf dem PC läuft `mobile` (Vulkan), auf Android automatisch `gl_compatibility` (Projekteinstellung `renderer/rendering_method.mobile`). Die Shader laufen unter beiden. Mit `--rendering-method gl_compatibility` kannst du den Android-Pfad am PC prüfen. Die Vive Focus Vision wird laut Godot-Doku über das Khronos-Plugin des OpenXR-Vendors-Plugins angesprochen (`xr_features/enable_khronos_plugin`).
+
+**Daten:** Die Brille hört selbst auf UDP-Port 4242 (WLAN). In MATLAB `udpOpen(address="<IP der Brille>")` setzen. Die Brille bekommt per DHCP evtl. wechselnde Adressen: im Router eine feste IP reservieren. Eine Brille entspricht einem Absender; mehrere Brillen brauchen das Relay aus [docs/plan.md](docs/plan.md).
+
+**Export per Kommandozeile** (aus dem Repo-Ordner, Godot 4.7.2):
+
+```powershell
+$env:JAVA_HOME = "C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot"
+Godot --headless --path godot --export-debug "Vive_LBE" build/vive_lbe.apk
+adb install -r godot/build/vive_lbe.apk
+```
+
+Im Editor: *Projekt → Exportieren*. Die APKs sind Debug-Builds mit dem Godot-Debug-Keystore und landen nicht im Repo.
+
+### Einrichtung auf einem anderen Rechner
+
+`godot/export_presets.cfg` liegt im Repo (Godot 4 speichert Zugangsdaten getrennt in `.godot/export_credentials.cfg`). Was nicht im Repo liegt, installiert das Skript:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\setup_android.ps1
+```
+
+Voraussetzung: Windows mit `winget`, Godot 4.7.2 einmal gestartet (damit die Editoreinstellungen existieren), danach Godot schließen und das Skript starten. Es installiert JDK 17, das Android SDK (Platform 36, Build-Tools 36.1.0, NDK 29.0.14206865, CMake) und die Export-Templates, legt das Android-Build-Template (`godot/android`) und das OpenXR-Vendors-Plugin (`godot/addons/godotopenxrvendors`) an, erzeugt den Debug-Keystore und trägt die Pfade in die Editoreinstellungen ein. Etwa 4 GB Download. Das Skript akzeptiert dabei die Android-SDK-Lizenzen. Was es nicht tut: Entwicklermodus an der Brille aktivieren und per USB oder WLAN-`adb` verbinden.
+
 ## Tests
 
 - **Godot ohne Netzwerk:** prüft Empfänger (Chunks, Warteschlange, Session, ungültige Header, Bit-Packen) und zeichnet jeden Magic zweimal (Neuaufbau und Update).
@@ -127,4 +162,4 @@ Begrenzend ist meist der MATLAB-Sender: Ein `write()` kostet etwa 10 ms je Datag
 
 ## Projektstand und Ausblick
 
-Das Godot-Projekt nutzt den `mobile`-Renderer (Vulkan) und ist als Godot 4.7 gespeichert. Das Zielsystem (Hyper-Irrealismus III) verwendet laut [docs/plan.md](docs/plan.md) Godot 4.6 mit GL Compatibility. Beim Übernehmen in das VR-Template muss der Shader dort früh getestet werden. Dort gilt auch: Texturen als `R8` (uint8) verwenden. Die Architektur für Server und Brillen steht in [docs/plan.md](docs/plan.md).
+Das Godot-Projekt nutzt am PC den `mobile`-Renderer (Vulkan), auf Android `gl_compatibility`, und ist als Godot 4.7 gespeichert. Das Zielsystem (Hyper-Irrealismus III) verwendet laut [docs/plan.md](docs/plan.md) Godot 4.6 mit GL Compatibility. Beim Übernehmen in das VR-Template muss der Shader dort früh getestet werden. Dort gilt auch: Texturen als `R8` (uint8) verwenden. Die Architektur für Server und Brillen steht in [docs/plan.md](docs/plan.md).

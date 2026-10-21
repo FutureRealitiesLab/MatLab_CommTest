@@ -23,6 +23,9 @@ extends Node3D
 @export var receiver_path: NodePath
 ## Ausdehnung der Box in Metern: x, y (Bodenflaeche) und z (Hoehe der 3D-Box).
 @export var box_size := Vector3(4.0, 8.0, 2.0)
+## Drehung des ganzen Raums um die Senkrechte in Grad (Ausrichtung zum echten
+## Raum). Bei 0 liegt die lange Seite (MATLAB-y, 8 m) entlang -z, bei 90 entlang -x.
+@export var room_rotation_deg: float = 90.0
 ## Hoehe der Unterkante der 3D-Box ueber dem Boden in Metern.
 @export var lift: float = 0.5
 ## true: Daten fuellen die ganze Box (verzerrt bei anderem Seitenverhaeltnis).
@@ -73,12 +76,14 @@ func colormap_name() -> String:
 
 
 ## Dreht `Plot` so, dass MATLAB-x nach +x, MATLAB-y nach -z (in den Raum) und
-## MATLAB-z nach oben zeigt, und setzt die Rahmen von Box und Boden.
+## MATLAB-z nach oben zeigt, danach um `room_rotation_deg` um die Senkrechte
+## (um den Boden-Mittelpunkt), und setzt die Rahmen von Box und Boden.
 func _apply_layout() -> void:
 	var plot := get_parent() as Node3D
 	if plot:
-		plot.transform = Transform3D(Basis(Vector3.RIGHT, -PI / 2.0),
-				Vector3(-box_size.x / 2.0, 0.0, box_size.y / 2.0))
+		var yaw := Basis(Vector3.UP, deg_to_rad(room_rotation_deg))
+		plot.transform = Transform3D(yaw * Basis(Vector3.RIGHT, -PI / 2.0),
+				yaw * Vector3(-box_size.x / 2.0, 0.0, box_size.y / 2.0))
 	var outline := get_node_or_null(outline_path) as Node3D
 	if outline:
 		outline.scale = box_size

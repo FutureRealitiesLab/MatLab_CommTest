@@ -7,6 +7,15 @@ extends XROrigin3D
 ##   y steigt/sinkt senkrecht. Keine Teleport- oder Drehschritte.
 ## Groesse und Lage der Plotbox legt scene_view.gd fest (Raum in Metern).
 
+## FLY: Bewegung per Controller (stationaer). ROOMSCALE (LBE): keine Stick-
+## Bewegung, nur die echte Bewegung im Raum zaehlt. Das Export-Feature "lbe"
+## erzwingt ROOMSCALE, am PC und im Editor bleibt der Wert aus dem Inspector.
+enum Locomotion { FLY, ROOMSCALE }
+
+@export var locomotion: Locomotion = Locomotion.FLY
+## Lage des Boden-Ursprungs in ROOMSCALE: Der Nullpunkt des Tracking-Raums
+## (Raummitte) liegt hier, die 4 x 8 m-Flaeche ist um den Ursprung zentriert.
+@export var roomscale_origin := Vector3.ZERO
 @export var camera_path: NodePath
 @export var left_path: NodePath
 @export var right_path: NodePath
@@ -23,6 +32,11 @@ var xr_active: bool = false
 
 
 func _ready() -> void:
+	if OS.has_feature("lbe"):
+		locomotion = Locomotion.ROOMSCALE
+	if locomotion == Locomotion.ROOMSCALE:
+		position = roomscale_origin
+	print("XR: Locomotion ", Locomotion.keys()[locomotion])
 	var xr := XRServer.find_interface("OpenXR")
 	if xr == null or not xr.is_initialized():
 		print("XR: kein OpenXR-Headset, Desktop-Ansicht.")
@@ -45,7 +59,7 @@ func _set_xr(on: bool) -> void:
 	for hand: XRController3D in [_left, _right]:
 		if hand:
 			hand.visible = on
-	set_process(on)
+	set_process(on and locomotion == Locomotion.FLY)
 	if on:
 		for hand: XRController3D in [_left, _right]:
 			if hand and hand.get_child_count() == 0:

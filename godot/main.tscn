@@ -43,7 +43,7 @@ script = ExtResource("4_box")
 script = ExtResource("4_box")
 
 [node name="XRRig" type="XROrigin3D" parent="." unique_id=865566989]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 5.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 3.5)
 script = ExtResource("6_xr")
 camera_path = NodePath("XRCamera3D")
 left_path = NodePath("LeftHand")

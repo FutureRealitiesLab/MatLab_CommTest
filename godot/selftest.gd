@@ -197,5 +197,6 @@ func _test_scene() -> void:
 	# MATLAB x/y/z -> Raum: x entlang 4 m, y entlang 8 m (in den Raum), z nach oben.
 	var plot: Node3D = view.get_parent()
 	var corner: Vector3 = plot.transform * Vector3(view.box_size.x, view.box_size.y, view.box_size.z)
-	_check(corner.is_equal_approx(Vector3(2.0, 2.0, -4.0)), "plot corner %s" % corner)
+	# Bei room_rotation_deg = 90 liegt die 8 m-Seite entlang x, die 4 m-Seite entlang z.
+	_check(corner.is_equal_approx(Vector3(-4.0, 2.0, -2.0)), "plot corner %s" % corner)
 	scene.free()

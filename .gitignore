@@ -1,4 +1,13 @@
 .godot/
 *.translation
-export_presets.cfg
 *.asv
+
+# Android-Export (siehe tools/setup_android.ps1 und README)
+# export_presets.cfg ist absichtlich im Repo: Es enthaelt keine Zugangsdaten
+# (Godot 4 legt diese in .godot/export_credentials.cfg ab).
+godot/android/
+godot/addons/godotopenxrvendors/
+godot/build/
+*.apk
+*.aab
+*.idsig
