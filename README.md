@@ -1,6 +1,6 @@
 # MatLab_CommTest: MATLAB → Godot 4 per UDP
 
-Echtzeit-Kopplung: MATLAB berechnet zeitveränderliche Felder, Partikel oder Zellularautomaten und sendet sie per UDP an Godot 4. Godot stellt sie in einer gemeinsamen Plotbox `[0 1]^3` dar (Bild, Höhenfläche, Schnitte, Volumen, Pfeile, Partikel, Automat auf Ebene/Kugel/Torus). Langfristiges Ziel: VR-Simulator (siehe [docs/plan.md](docs/plan.md)).
+Echtzeit-Kopplung: MATLAB berechnet zeitveränderliche Felder, Partikel oder Zellularautomaten und sendet sie per UDP an Godot 4. Godot stellt sie in einem Raum von 4 × 8 m dar (2D-Daten auf dem Boden, 3D-Daten in einer 2 m hohen Box) (Bild, Höhenfläche, Schnitte, Volumen, Pfeile, Partikel, Automat auf Ebene/Kugel/Torus). Langfristiges Ziel: VR-Simulator (siehe [docs/plan.md](docs/plan.md)).
 
 Das Protokoll ist **typisiert**: Ein vierstelliger Magic-String (z. B. `S3v.`, `V2q0`, `P2p1`, `C2m2`) wählt Datenformat und Darstellung. Studierende schreiben nur ihre Simulationsschleife und rufen `udpSend(u, data, frameid)` auf.
 
@@ -18,7 +18,7 @@ matlab/udp/
 godot/
   project.godot, main.tscn
   udp_receiver.gd  UDP-Empfang, Session-/Frame-Logik, Chunk-Zusammenbau, Warteschlange
-  scene_view.gd    Darstellung je Magic (Ebenen), Einpassen in die Plotbox
+  scene_view.gd    Darstellung je Magic (Ebenen), Raum 4 × 8 × 2 m, Einpassen
   field_image.gdshader, field_height.gdshader, field_slice.gdshader, volume_raymarch.gdshader
   colormap.gdshaderinc   Farbskalen (rainbow, hot, gray, viridis)
   box_outline.gd, orbit_camera.gd, debug_overlay.gd
@@ -63,7 +63,7 @@ Wichtig:
 - **Achsen:** Dimension 1 = y (`ny`), Dimension 2 = x (`nx`), Dimension 3 = z, wie bei MATLAB-`imagesc`. Die Daten werden spaltenweise (`data(:)`) gesendet.
 - **Wertebereich:** `vspan=[vmin vmax]` gilt für alle S/V-Komponenten. Die Werte werden abgeschnitten und auf 0..255 quantisiert. Partikel gehen unquantisiert als `float32`, Positionen normiert auf 0..1. Automaten werden mit 1, 2, 4 oder 8 Bit pro Zustand gepackt (`nostates`).
 - **Ebenen:** Jeder Magic ergibt eine eigene Ebene in der Plotbox (bei `P` je Art). Zwei Datensätze derselben Simulation brauchen **eigene, aufsteigende Frame-IDs** (z. B. 1, 3, 5 Dichte und 2, 4, 6 Vektoren).
-- **Einpassen:** Alle Daten werden mit einem einheitlichen Faktor ohne Verzerrung in `[0 1]^3` eingepasst.
+- **Raum und Einpassen:** Der Boden misst 4 m (MATLAB-x, `nx`) × 8 m (MATLAB-y, `ny`) und ist um den Ursprung zentriert. MATLAB-z zeigt nach oben. **2D-Daten** (`S2i`, `S2s`, `V2q`, `P2p`, `C2i`, `C2m0`) liegen auf dem Boden. **3D-Daten** (`S3*`, `V3q`, `P3p`) sowie Kugel und Torus (`C2m1`, `C2m2`) liegen in einer 2 m hohen Box, die 0,5 m über dem Boden beginnt. Die Daten füllen die jeweilige Fläche bzw. Box und werden dabei verzerrt, wenn das Gitter ein anderes Seitenverhältnis hat. Mit `stretch = false` an der Node `View` wird stattdessen ohne Verzerrung eingepasst. Maße: `box_size` und `lift` an der Node `View`. Höhenflächen (`S2s`) steigen bis zur halben Boxhöhe (1 m).
 
 ## Paketformat (Kurzfassung)
 
@@ -83,6 +83,24 @@ Jedes Datagramm beginnt mit 20 Byte (little-endian): Magic (4 Byte ASCII), Sessi
 | `F3` | Overlay ein-/ausblenden (Pakete/s, Frames/s, Frame-Größe, Verworfen, Session, Magic, Ebenen) |
 
 Port und Bind-Adresse stehen an der Node `Receiver` (`port`, `bind_address`, `recv_buffer_size`). Es ist IPv4 gebunden (`0.0.0.0`).
+
+## VR mit SteamVR (HTC Vive am PC)
+
+Das Projekt startet automatisch in VR, wenn SteamVR läuft und ein Headset erkannt wird (OpenXR). Ohne Headset bleibt die Desktop-Ansicht mit Orbit-Kamera. Die Konsole meldet `XR: OpenXR aktiv.` bzw. `XR: kein OpenXR-Headset, Desktop-Ansicht.`
+
+**Voraussetzungen:** SteamVR starten und als OpenXR-Runtime setzen (SteamVR → Einstellungen → OpenXR → "SteamVR als OpenXR-Runtime festlegen"). Dann Godot 4.7 starten (F5 oder Play-Button).
+
+**Steuerung (Flug, keine Schritte):**
+
+| Eingabe | Wirkung |
+|---|---|
+| Linker Stick bzw. Trackpad | Fliegen in Zeigerichtung des linken Controllers (vor/zurück, seitlich) |
+| Rechter Stick, x | Stufenlos drehen, um die Kopfposition |
+| Rechter Stick, y | Senkrecht steigen / sinken |
+
+Die Controller werden als kleine Quader dargestellt. Der Startpunkt liegt auf dem Boden, 1,5 m vor der Längskante der 4 × 8 m-Fläche, Blickrichtung in den Raum. Der Raum ist in Metern fest (siehe oben), er wird nicht mehr zum Headset hin skaliert. Geschwindigkeit und Drehrate stehen an der Node `XRRig` (`fly_speed`, `turn_speed_deg`, `deadzone`). Das Overlay (`F3`) ist nur im Desktopfenster sichtbar, nicht im Headset.
+
+Aufbau: `godot/xr_rig.gd` liegt auf `XRRig` (XROrigin3D mit Kamera und zwei Controllern). Die Projekteinstellungen `xr/openxr/enabled` und `xr/shaders/enabled` sind gesetzt. Die Eingaben kommen aus der Standard-Action-Map von Godot (`primary` = Stick oder Trackpad).
 
 ## Tests
 

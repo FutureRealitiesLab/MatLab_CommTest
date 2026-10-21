@@ -148,7 +148,7 @@ func _test_scene() -> void:
 	root.add_child(scene)
 	await process_frame  # _ready der Szene (Pfeilmesh) muss vor dem ersten Frame laufen
 	var r: Node = scene.get_node("Receiver")
-	var view: Node = scene.get_node("View")
+	var view: Node = scene.get_node("Plot/View")
 
 	var cases := [
 		["S2i0", [12, 16, 1, 1]], ["S2s0", [12, 16, 1, 1]],
@@ -189,4 +189,13 @@ func _test_scene() -> void:
 			if not f.is_empty():
 				view.show_frame(f.magic, f.info, f.payload)
 	_check(view.layers.size() == 10, "layer count %d" % view.layers.size())
+	# 2D-Daten liegen auf dem Boden, 3D-Daten (und Kugel/Torus) ueber `lift`.
+	for key: String in ["S2i", "S2s", "V2q", "P2p0", "C2i"]:
+		_check(view.layers.has(key) and is_zero_approx(view.layers[key].root.position.z), "floor " + key)
+	for key: String in ["S3i", "S3v", "V3q", "P3p1", "C2m"]:
+		_check(view.layers.has(key) and is_equal_approx(view.layers[key].root.position.z, view.lift), "raised " + key)
+	# MATLAB x/y/z -> Raum: x entlang 4 m, y entlang 8 m (in den Raum), z nach oben.
+	var plot: Node3D = view.get_parent()
+	var corner: Vector3 = plot.transform * Vector3(view.box_size.x, view.box_size.y, view.box_size.z)
+	_check(corner.is_equal_approx(Vector3(2.0, 2.0, -4.0)), "plot corner %s" % corner)
 	scene.free()

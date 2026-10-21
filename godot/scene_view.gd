@@ -3,19 +3,34 @@ extends Node3D
 ##
 ## magic(1) Datentyp, magic(2) Dimension, magic(3) Darstellung, magic(4) Extra.
 ## Verschiedene Magics erzeugen getrennte Ebenen (S2i, S3i, V3q, P2p0, ...) in
-## einer Plotbox [0 1]^3; jede Ebene wird nur bei geaenderter Form neu gebaut.
-## Alle Daten werden mit einem einheitlichen Faktor ohne Verzerrung eingepasst.
+## einer Plotbox von `box_size` Metern; jede Ebene wird nur bei geaenderter Form
+## neu gebaut. Die Daten fuellen die Box (`stretch`) oder werden mit einem
+## einheitlichen Faktor ohne Verzerrung eingepasst.
+##
+## Raum: Der Boden ist die x-y-Flaeche (x = box_size.x, y = box_size.y), z zeigt
+## nach oben. 2D-Daten liegen auf dem Boden, 3D-Daten in einer Box, die `lift`
+## Meter ueber dem Boden beginnt. Der Boden ist um den Ursprung zentriert.
 ##
 ## S2i Bild | S2s Hoehenflaeche | S3i<n> n Schnitte entlang z, S3i0 drei
 ## Mittelschnitte | S3v Volumen | V2q/V3q<k> Pfeile (k=0 automatisch)
 ## P2p<x> Partikelart x (+ Geschwindigkeitspfeile) | C2i Bild |
 ## C2m<0|1|2> Automat auf Ebene/Kugel/Torus.
 ##
-## Koordinaten wie in MATLAB: x, y, z unveraendert (y zeigt nach oben).
-## Texturen sind [ny nx nz] (Breite ny, Hoehe nx) und werden roh aus dem
+## Koordinaten wie in MATLAB (x, y, z); die Node `Plot` dreht sie so, dass z in
+## Godot nach oben zeigt. Texturen sind [ny nx nz] (Breite ny, Hoehe nx) und werden roh aus dem
 ## spaltenweisen Payload erzeugt; die Shader vertauschen x und y.
 
 @export var receiver_path: NodePath
+## Ausdehnung der Box in Metern: x, y (Bodenflaeche) und z (Hoehe der 3D-Box).
+@export var box_size := Vector3(4.0, 8.0, 2.0)
+## Hoehe der Unterkante der 3D-Box ueber dem Boden in Metern.
+@export var lift: float = 0.5
+## true: Daten fuellen die ganze Box (verzerrt bei anderem Seitenverhaeltnis).
+@export var stretch: bool = true
+## Radius der Partikelkugeln in Metern.
+@export var particle_radius: float = 0.04
+@export var outline_path: NodePath
+@export var floor_outline_path: NodePath
 ## 0 rainbow, 1 hot, 2 gray, 3 viridis (Taste C wechselt).
 @export var colormap: int = 0
 
@@ -37,6 +52,7 @@ var _shaders: Dictionary = {}
 
 func _ready() -> void:
 	_arrow_mesh = _make_arrow_mesh()
+	_apply_layout()
 	var receiver := get_node_or_null(receiver_path)
 	if receiver:
 		receiver.frame_received.connect(show_frame)
@@ -54,6 +70,30 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 func colormap_name() -> String:
 	return COLORMAP_NAMES[colormap]
+
+
+## Dreht `Plot` so, dass MATLAB-x nach +x, MATLAB-y nach -z (in den Raum) und
+## MATLAB-z nach oben zeigt, und setzt die Rahmen von Box und Boden.
+func _apply_layout() -> void:
+	var plot := get_parent() as Node3D
+	if plot:
+		plot.transform = Transform3D(Basis(Vector3.RIGHT, -PI / 2.0),
+				Vector3(-box_size.x / 2.0, 0.0, box_size.y / 2.0))
+	var outline := get_node_or_null(outline_path) as Node3D
+	if outline:
+		outline.scale = box_size
+		outline.position = box_size / 2.0 + Vector3(0.0, 0.0, lift)
+	var floor_outline := get_node_or_null(floor_outline_path) as Node3D
+	if floor_outline:
+		floor_outline.scale = Vector3(box_size.x, box_size.y, 0.001)
+		floor_outline.position = Vector3(box_size.x / 2.0, box_size.y / 2.0, 0.0)
+
+
+## 2D-Daten liegen auf dem Boden, Kugel und Torus (C2m1, C2m2) in der 3D-Box.
+func _on_floor(magic: String) -> bool:
+	if magic[1] != "2":
+		return false
+	return not (magic.substr(1, 2) == "2m" and ["1", "2"].has(magic[3]))
 
 
 func show_frame(magic: String, info: Dictionary, payload: PackedByteArray) -> void:
@@ -74,6 +114,7 @@ func show_frame(magic: String, info: Dictionary, payload: PackedByteArray) -> vo
 		if not layer.is_empty():
 			layer.root.queue_free()
 		layer = {"magic": magic, "sig": sig, "root": Node3D.new(), "mats": []}
+		layer.root.position = Vector3.ZERO if _on_floor(magic) else Vector3(0.0, 0.0, lift)
 		add_child(layer.root)
 		layers[key] = layer
 
@@ -101,14 +142,21 @@ func _clear() -> void:
 
 # ---- Einpassen in die Box ---------------------------------------------------
 
-## Ein Faktor s passt ext (Zellen je Achse) in [0 1]^n und zentriert (ohne Verzerrung).
+## Faktoren s (Meter je Zelle und Achse) passen ext (Zellen je Achse) in box_size
+## und zentrieren. Bei `stretch` fuellt jede Achse die Box, sonst gilt ein
+## einheitlicher Faktor (ohne Verzerrung). Fehlende Achsen (2D) bleiben bei s.z = min(s).
 func _fit(ext: Array) -> Dictionary:
-	var s := INF
-	for e: float in ext:
-		s = minf(s, 1.0 / e)
+	var s := Vector3.ONE * INF
+	for i in ext.size():
+		s[i] = box_size[i] / ext[i]
+	var smin := minf(s.x, minf(s.y, s.z))
+	if not stretch:
+		s = Vector3.ONE * smin
+	elif ext.size() < 3:
+		s.z = smin
 	var off := Vector3.ZERO
 	for i in ext.size():
-		off[i] = (1.0 - s * ext[i]) / 2.0
+		off[i] = (box_size[i] - s[i] * ext[i]) / 2.0
 	return {"s": s, "off": off}
 
 
@@ -175,9 +223,10 @@ func _field2d(layer: Dictionary, rebuild: bool, ny: int, nx: int, bytes: PackedB
 		mat.set_shader_parameter("grid", Vector2i(ny, nx))
 	var mesh: ArrayMesh
 	var fit := _fit([nx, ny])
-	var s: float = fit.s
+	var s: Vector3 = fit.s
 	var off: Vector3 = fit.off
-	var ext := Vector2(s * nx, s * ny)
+	var ext := Vector2(s.x * nx, s.y * ny)
+	var round_size := minf(box_size.x, minf(box_size.y, box_size.z))
 	match mode:
 		"plane":
 			mat.set_shader_parameter("value_scale", value_scale)
@@ -186,6 +235,7 @@ func _field2d(layer: Dictionary, rebuild: bool, ny: int, nx: int, bytes: PackedB
 				return Vector3(off.x + ext.x * u, off.y + ext.y * v, 0.0))
 		"height":
 			mat.set_shader_parameter("extent", ext)
+			mat.set_shader_parameter("height", 0.5 * box_size.z)
 			mesh = _surface(clampi(nx, 1, MAX_SURFACE_SEGMENTS), clampi(ny, 1, MAX_SURFACE_SEGMENTS),
 					func(u: float, v: float) -> Vector3:
 				return Vector3(off.x + ext.x * u, off.y + ext.y * v, 0.0))
@@ -195,7 +245,7 @@ func _field2d(layer: Dictionary, rebuild: bool, ny: int, nx: int, bytes: PackedB
 			mesh = _surface(64, 32, func(u: float, v: float) -> Vector3:
 				var phi := TAU * u
 				var theta := PI * v
-				return Vector3(0.5, 0.5, 0.5) + 0.5 * Vector3(
+				return box_size / 2.0 + 0.5 * round_size * Vector3(
 						sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta)))
 		_:  # torus
 			mat.set_shader_parameter("value_scale", value_scale)
@@ -204,7 +254,7 @@ func _field2d(layer: Dictionary, rebuild: bool, ny: int, nx: int, bytes: PackedB
 				var phi := TAU * u
 				var theta := TAU * v
 				var ring := 0.35 + 0.15 * cos(theta)
-				return Vector3(0.5, 0.5, 0.5) + Vector3(
+				return box_size / 2.0 + round_size * Vector3(
 						ring * cos(phi), ring * sin(phi), 0.15 * sin(theta)))
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
@@ -243,9 +293,9 @@ func _slices(layer: Dictionary, rebuild: bool, magic: String, dims: Array, paylo
 				specs.append([0, (k - 0.5) / nz])
 
 	var fit := _fit([nx, ny, nz])
-	var s: float = fit.s
+	var s: Vector3 = fit.s
 	var off: Vector3 = fit.off
-	var ext := Vector3(s * nx, s * ny, s * nz)
+	var ext := Vector3(s.x * nx, s.y * ny, s.z * nz)
 	for spec: Array in specs:
 		var axis: int = spec[0]
 		var pos: float = spec[1]
@@ -298,9 +348,9 @@ func _volume(layer: Dictionary, rebuild: bool, dims: Array, payload: PackedByteA
 	layer.tex = tex
 
 	var fit := _fit([nx, ny, nz])
-	var s: float = fit.s
+	var s: Vector3 = fit.s
 	var off: Vector3 = fit.off
-	var ext := Vector3(s * nx, s * ny, s * nz)
+	var ext := Vector3(s.x * nx, s.y * ny, s.z * nz)
 	var mat := ShaderMaterial.new()
 	mat.shader = _shader("volume_raymarch")
 	mat.set_shader_parameter("volume_tex", tex)
@@ -340,7 +390,7 @@ func _quiver(layer: Dictionary, rebuild: bool, magic: String, info: Dictionary, 
 	var sx := maxi(1, ceili(nx / (25.0 if is_2d else 12.0)))
 	var sz := 1 if is_2d else maxi(1, ceili(nz / 8.0))
 	var fit := _fit([nx, ny] if is_2d else [nx, ny, nz])
-	var s: float = fit.s
+	var s: Vector3 = fit.s
 	var off: Vector3 = fit.off
 	var vspan: Array = info.vspan
 	var vmax := maxf(absf(vspan[0]), absf(vspan[1]))
@@ -358,12 +408,14 @@ func _quiver(layer: Dictionary, rebuild: bool, magic: String, info: Dictionary, 
 				for c in ncomp:
 					var q := payload[iy + ny * (ix + nx * (iz + nz * c))]
 					v[c] = vspan[0] + q / 255.0 * (vspan[1] - vspan[0])
-				var z := 0.0 if is_2d else off.z + s * (iz + 0.5)
-				positions.append(Vector3(off.x + s * (ix + 0.5), off.y + s * (iy + 0.5), z))
+				var z := 0.0 if is_2d else off.z + s.z * (iz + 0.5)
+				positions.append(Vector3(off.x + s.x * (ix + 0.5), off.y + s.y * (iy + 0.5), z))
 				vectors.append(v)
 				maxmag = maxf(maxmag, v.length())
 
-	var spacing := s * maxi(sx, maxi(sy, sz))
+	var spacing := minf(s.x * sx, s.y * sy)
+	if not is_2d:
+		spacing = minf(spacing, s.z * sz)
 	var factor := 0.0
 	if k > 0:
 		factor = k * spacing / vmax
@@ -395,7 +447,7 @@ func _particles(layer: Dictionary, rebuild: bool, magic: String, dims: Array, pa
 	var color: Color = SPECIES_COLORS[species % SPECIES_COLORS.size()]
 	var data := payload.to_float32_array()
 	var fit := _fit(_ones(nd))
-	var s: float = fit.s
+	var s: Vector3 = fit.s
 	var off: Vector3 = fit.off
 
 	var positions := PackedVector3Array()
@@ -404,7 +456,7 @@ func _particles(layer: Dictionary, rebuild: bool, magic: String, dims: Array, pa
 	for i in n:
 		var p := Vector3.ZERO
 		for c in nd:
-			p[c] = off[c] + s * data[i + n * c]
+			p[c] = off[c] + s[c] * data[i + n * c]
 		positions.append(p)
 		if nc > nd:
 			var v := Vector3.ZERO
@@ -417,8 +469,8 @@ func _particles(layer: Dictionary, rebuild: bool, magic: String, dims: Array, pa
 		var spheres := MultiMesh.new()
 		spheres.transform_format = MultiMesh.TRANSFORM_3D
 		var ball := SphereMesh.new()
-		ball.radius = 0.008
-		ball.height = 0.016
+		ball.radius = particle_radius
+		ball.height = 2.0 * particle_radius
 		ball.radial_segments = 8
 		ball.rings = 4
 		spheres.mesh = ball
@@ -440,11 +492,12 @@ func _particles(layer: Dictionary, rebuild: bool, magic: String, dims: Array, pa
 				layer.mm = _arrow_instances(layer.root, n, color)
 			else:
 				(layer.mm as MultiMesh).instance_count = n
-		# Laengster Pfeil: 0.08 Boxeinheiten.
+		# Laengster Pfeil: 8 % der kleinsten Boxkante.
+		var longest := 0.08 * minf(box_size.x, minf(box_size.y, box_size.z))
 		var lengths := PackedFloat32Array()
 		var colors := PackedColorArray()
 		for v in vectors:
-			lengths.append(0.08 * v.length() / maxf(maxmag, 1e-12))
+			lengths.append(longest * v.length() / maxf(maxmag, 1e-12))
 			colors.append(color)
 		_set_arrows(layer.mm, positions, vectors, lengths, colors)
 	return true

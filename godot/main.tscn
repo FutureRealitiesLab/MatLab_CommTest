@@ -1,43 +1,66 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene format=3 uid="uid://xjvjhssgl2nb"]
 
-[ext_resource type="Script" path="res://udp_receiver.gd" id="1_recv"]
-[ext_resource type="Script" path="res://scene_view.gd" id="2_view"]
-[ext_resource type="Script" path="res://orbit_camera.gd" id="3_cam"]
-[ext_resource type="Script" path="res://box_outline.gd" id="4_box"]
-[ext_resource type="Script" path="res://debug_overlay.gd" id="5_dbg"]
+[ext_resource type="Script" uid="uid://dekjjpf0oywx5" path="res://udp_receiver.gd" id="1_recv"]
+[ext_resource type="Script" uid="uid://ck52rn4eve62j" path="res://scene_view.gd" id="2_view"]
+[ext_resource type="Script" uid="uid://c46nbmau1dcxn" path="res://orbit_camera.gd" id="3_cam"]
+[ext_resource type="Script" uid="uid://clx82qcmgvbcl" path="res://box_outline.gd" id="4_box"]
+[ext_resource type="Script" uid="uid://crmih8jcrkqik" path="res://debug_overlay.gd" id="5_dbg"]
+[ext_resource type="Script" uid="uid://c8k6ofmr12sst" path="res://xr_rig.gd" id="6_xr"]
 
 [sub_resource type="Environment" id="Environment_1"]
 background_mode = 1
 background_color = Color(0.04, 0.05, 0.08, 1)
 
-[node name="Main" type="Node3D"]
+[node name="Main" type="Node3D" unique_id=431760260]
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=609644677]
 environment = SubResource("Environment_1")
 
-[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=803080993]
 transform = Transform3D(0.866, -0.25, 0.433, 0, 0.866, 0.5, -0.5, -0.433, 0.75, 0, 3, 0)
 
-[node name="Camera3D" type="Camera3D" parent="."]
+[node name="Camera3D" type="Camera3D" parent="." unique_id=54916152]
 current = true
 script = ExtResource("3_cam")
-target = Vector3(0.5, 0.5, 0.5)
-distance = 2.2
+target = Vector3(0, 1.5, 0)
+distance = 14.0
 
-[node name="Receiver" type="Node" parent="."]
+[node name="Receiver" type="Node" parent="." unique_id=1708247319]
 script = ExtResource("1_recv")
 
-[node name="View" type="Node3D" parent="."]
-script = ExtResource("2_view")
-receiver_path = NodePath("../Receiver")
+[node name="Plot" type="Node3D" parent="." unique_id=1167704913]
 
-[node name="Outline" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 0.5, 0.5)
+[node name="View" type="Node3D" parent="Plot" unique_id=857537404]
+script = ExtResource("2_view")
+receiver_path = NodePath("../../Receiver")
+outline_path = NodePath("../Outline")
+floor_outline_path = NodePath("../FloorOutline")
+
+[node name="Outline" type="MeshInstance3D" parent="Plot" unique_id=1356958850]
 script = ExtResource("4_box")
 
-[node name="DebugLayer" type="CanvasLayer" parent="."]
+[node name="FloorOutline" type="MeshInstance3D" parent="Plot"]
+script = ExtResource("4_box")
 
-[node name="Stats" type="Label" parent="DebugLayer"]
+[node name="XRRig" type="XROrigin3D" parent="." unique_id=865566989]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 5.5)
+script = ExtResource("6_xr")
+camera_path = NodePath("XRCamera3D")
+left_path = NodePath("LeftHand")
+right_path = NodePath("RightHand")
+desktop_camera_path = NodePath("../Camera3D")
+
+[node name="XRCamera3D" type="XRCamera3D" parent="XRRig" unique_id=1668187020]
+
+[node name="LeftHand" type="XRController3D" parent="XRRig" unique_id=295446305]
+tracker = &"left_hand"
+
+[node name="RightHand" type="XRController3D" parent="XRRig" unique_id=1830494129]
+tracker = &"right_hand"
+
+[node name="DebugLayer" type="CanvasLayer" parent="." unique_id=1914757772]
+
+[node name="Stats" type="Label" parent="DebugLayer" unique_id=1979860530]
 offset_left = 12.0
 offset_top = 12.0
 offset_right = 420.0
@@ -46,4 +69,4 @@ theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 4
 script = ExtResource("5_dbg")
 receiver_path = NodePath("../../Receiver")
-view_path = NodePath("../../View")
+view_path = NodePath("../../Plot/View")
