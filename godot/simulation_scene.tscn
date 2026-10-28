@@ -4,6 +4,7 @@
 [ext_resource type="Script" path="res://scene_view.gd" id="2_view"]
 [ext_resource type="Script" path="res://box_outline.gd" id="3_box"]
 [ext_resource type="Script" path="res://debug_overlay.gd" id="4_dbg"]
+[ext_resource type="Script" path="res://orbit_camera.gd" id="5_orbit"]
 
 [sub_resource type="Environment" id="Environment_1"]
 background_mode = 1
@@ -28,7 +29,10 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, 0)
 shape = SubResource("BoxShape_floor")
 
 [node name="ServerCamera" type="Camera3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 0.9, 0.43, 0, -0.43, 0.9, 0, 6, 9)
+script = ExtResource("5_orbit")
+target = Vector3(0, 1, 0)
+distance = 13.0
+require_current = true
 
 [node name="Plot" type="Node3D" parent="."]
 

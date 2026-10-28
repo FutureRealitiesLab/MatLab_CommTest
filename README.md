@@ -78,7 +78,9 @@ Jedes Datagramm beginnt mit 20 Byte (little-endian): Magic (4 Byte ASCII), Sessi
 
 | Taste | Wirkung |
 |---|---|
-| Linke Maustaste ziehen, Mausrad | Orbit-Kamera drehen und zoomen |
+| Linke Maustaste ziehen | Kamera um den Mittelpunkt drehen (Orbit) |
+| Rechte Maustaste ziehen | Ansicht verschieben (Panning) |
+| Mausrad | Zoom |
 | `C` | Colormap wechseln (rainbow, hot, gray, viridis) |
 | `F3` | Overlay ein-/ausblenden (Pakete/s, Frames/s, Frame-Größe, Verworfen, Session, Magic, Ebenen) |
 
@@ -102,9 +104,27 @@ MATLAB --UDP 4242--> Server (godot, "Als Server starten")
 
 **Einstellungen** (Project Settings, Abschnitt *Situs Core*): `network/server_ip`, `room/width_m` (4), `room/length_m` (8), `room/rotation_deg`. Die Raumdrehung wirkt auf den XR-Ursprung der Brillen, nicht auf den Inhalt. Der frühere Wert `room_rotation_deg = 90` an `View` entspricht jetzt `rotation_deg = -90` (Vorzeichen an der Brille prüfen). Weitere Details in der Situs-Core-README.
 
-**Eigene Settings dieses Projekts** (optional, in `project.godot` unter `[sim]`): `sim/udp_port` (4242) und `sim/udp_on_clients`. Mit `udp_on_clients = true` lauscht jede Instanz selbst auf UDP, ohne Server und Relay. Das ist der Weg für eine einzelne Brille, an die MATLAB direkt sendet.
+**Eigene Settings dieses Projekts** (optional): Sie gehören zu diesem Projekt, nicht zu Situs, und stehen nicht im Editor-Dialog. Man trägt sie in `godot/project.godot` unter `[sim]` ein. Fehlen sie, gelten die Standardwerte.
 
-**Start:** Server-PC: F5, „Als Server starten“. Brillen: APK mit der Server-IP in den Settings. Desktop-Test: zweite Instanz mit „Als Spieler starten (Lokal / 127.0.0.1)“. Im Overlay (F3) zeigen „Rolle“ und „Relay“ den Stand.
+| Setting | Standard | Bedeutung |
+|---|---|---|
+| `sim/udp_port` | `4242` | UDP-Port, auf dem Godot die MATLAB-Daten empfängt. Er muss mit `udpOpen(port=...)` in MATLAB übereinstimmen. Nur ändern, wenn 4242 belegt ist. |
+| `sim/udp_on_clients` | `false` | `false`: Nur der Server empfängt MATLAB und verteilt die Daten über den Datenkanal an die Clients. `true`: Jede Instanz (auch Brille oder FPS-Client) empfängt selbst per UDP, ohne Server und ohne Datenkanal. |
+
+Wann `sim/udp_on_clients = true`? Für **eine einzelne Brille ohne Server**: MATLAB sendet direkt an die IP der Brille (`udpOpen(address="<IP der Brille>")`), und die Brille zeigt die Daten allein an. Bei mehreren Brillen bleibt es `false`: MATLAB sendet an den Server, der Datenkanal verteilt weiter. Mit `true` werden Frames auf den Clients nicht mehr vom Server geholt, und mehrere Absender auf demselben Port sind nicht vorgesehen.
+
+Beispiel in `project.godot`:
+
+```ini
+[sim]
+
+udp_port=4242
+udp_on_clients=false
+```
+
+Auch beim F6-Test der `simulation_scene.tscn` allein empfängt die Instanz direkt per UDP, unabhängig von diesen Settings.
+
+**Start:** Server-PC: F5, „Als Server starten“. Die Serveransicht lässt sich mit der Maus navigieren: links ziehen dreht, rechts ziehen verschiebt, Mausrad zoomt. Brillen: APK mit der Server-IP in den Settings. Desktop-Test: zweite Instanz mit „Als Spieler starten (Lokal / 127.0.0.1)“. Im Overlay (F3) zeigen „Rolle“ und „Relay“ den Stand.
 
 **Nicht mehr aktuell:** `main.tscn` mit `orbit_camera.gd` und `xr_rig.gd` (Flug, LBE-Tag) ist nicht mehr die Startszene. Sie bleibt als eigenständiger Betrachter ohne Situs erhalten (auch der `selftest` nutzt sie). Die Abschnitte „VR mit SteamVR“ und „APK für die Vive Focus Vision“ unten beschreiben diesen alten Betrachter.
 
