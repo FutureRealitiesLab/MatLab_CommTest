@@ -1,0 +1,24 @@
+[gd_scene format=3 uid="uid://cbxrplay001"]
+
+[ext_resource type="Script" uid="uid://m2n4xtj7xxqu" path="res://addons/situs_core/player/xr_player.gd" id="1_xrplaygd"]
+
+[sub_resource type="SphereMesh" id="SphereMesh_ctrl"]
+radius = 0.04
+height = 0.08
+
+[node name="XRPlayer" type="XROrigin3D" unique_id=102811565]
+script = ExtResource("1_xrplaygd")
+
+[node name="XRCamera3D" type="XRCamera3D" parent="." unique_id=1428344392]
+
+[node name="LeftHand" type="XRController3D" parent="." unique_id=578472504]
+tracker = &"left_hand"
+
+[node name="ControllerMesh" type="MeshInstance3D" parent="LeftHand" unique_id=111100001]
+mesh = SubResource("SphereMesh_ctrl")
+
+[node name="RightHand" type="XRController3D" parent="." unique_id=1677672070]
+tracker = &"right_hand"
+
+[node name="ControllerMesh" type="MeshInstance3D" parent="RightHand" unique_id=111100002]
+mesh = SubResource("SphereMesh_ctrl")

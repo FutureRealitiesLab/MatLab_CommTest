@@ -1,0 +1,22 @@
+[gd_scene format=3 uid="uid://bxrws3eeioal7"]
+
+[ext_resource type="Script" uid="uid://bt52a8cakm4qq" path="res://addons/situs_core/avatar/variants/avatar_dynamic_cone.gd" id="1_dyncone"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape_av"]
+radius = 0.28
+height = 1.6
+
+[node name="RemoteAvatar" type="CharacterBody3D" unique_id=685324494]
+script = ExtResource("1_dyncone")
+num_rings = 12
+base_diameter = 0.8
+top_diameter = 0.1
+top_ring_gap = 0.2
+damping_bottom = 1.0
+damping_top = 10.0
+damping_curve = 0.8
+body_back_offset = 0.1
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1527149288]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
+shape = SubResource("CapsuleShape_av")
