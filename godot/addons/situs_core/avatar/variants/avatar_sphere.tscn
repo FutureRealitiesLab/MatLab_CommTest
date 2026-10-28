@@ -1,0 +1,19 @@
+[gd_scene format=3 uid="uid://vatarsph001"]
+
+[ext_resource type="Script" uid="uid://cuqucpfkw4s0c" path="res://addons/situs_core/avatar/remote_avatar.gd" id="1_avatargd"]
+
+[sub_resource type="SphereShape3D" id="SphereShape_av"]
+radius = 0.22
+
+[sub_resource type="SphereMesh" id="SphereMesh_head"]
+radius = 0.22
+height = 0.44
+
+[node name="RemoteAvatar" type="CharacterBody3D" unique_id=1003289282]
+script = ExtResource("1_avatargd")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1870515221]
+shape = SubResource("SphereShape_av")
+
+[node name="Head" type="MeshInstance3D" parent="." unique_id=530170904]
+mesh = SubResource("SphereMesh_head")

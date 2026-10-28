@@ -1,0 +1,171 @@
+[gd_scene format=3 uid="uid://cbmain0001"]
+
+[ext_resource type="Script" uid="uid://coxo6qspb3uo3" path="res://addons/situs_core/core/main.gd" id="1_maingd"]
+[ext_resource type="Script" uid="uid://3scmfy3nh6h7" path="res://addons/situs_core/core/cam_dolly.gd" id="2_0xm2m"]
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_walkarea"]
+size = Vector2(1, 1)
+
+[node name="Main" type="Node" unique_id=2032259020]
+script = ExtResource("1_maingd")
+
+[node name="XRWalkArea" type="MeshInstance3D" parent="." unique_id=112233445]
+transform = Transform3D(3.5, 0, 0, 0, 1, 0, 0, 0, 6, 0, 0, 0)
+visible = false
+mesh = SubResource("PlaneMesh_walkarea")
+
+[node name="SceneContainer" type="Node3D" parent="." unique_id=937297686]
+
+[node name="PlayersContainer" type="Node3D" parent="." unique_id=1366420612]
+
+[node name="Menu" type="CanvasLayer" parent="." unique_id=1877597766]
+visible = false
+
+[node name="Center" type="CenterContainer" parent="Menu" unique_id=773074794]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBox" type="VBoxContainer" parent="Menu/Center" unique_id=657452158]
+custom_minimum_size = Vector2(440, 0)
+layout_mode = 2
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="Title" type="Label" parent="Menu/Center/VBox" unique_id=1745180100]
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "Situs Core"
+horizontal_alignment = 1
+
+[node name="Subtitle" type="Label" parent="Menu/Center/VBox" unique_id=194754703]
+layout_mode = 2
+text = "Wähle deinen Startmodus:"
+horizontal_alignment = 1
+
+[node name="HSep" type="HSeparator" parent="Menu/Center/VBox" unique_id=825257186]
+layout_mode = 2
+
+[node name="BtnFPS" type="Button" parent="Menu/Center/VBox" unique_id=163488456]
+custom_minimum_size = Vector2(0, 48)
+layout_mode = 2
+text = "Als Spieler starten (LAN)"
+
+[node name="BtnFPSLocal" type="Button" parent="Menu/Center/VBox" unique_id=163488457]
+custom_minimum_size = Vector2(0, 48)
+layout_mode = 2
+text = "Als Spieler starten (Lokal / 127.0.0.1)"
+
+[node name="BtnServer" type="Button" parent="Menu/Center/VBox" unique_id=1053973096]
+custom_minimum_size = Vector2(0, 48)
+layout_mode = 2
+text = "Als Server starten"
+
+[node name="ServerHUD" type="CanvasLayer" parent="." unique_id=275842784]
+layer = 10
+visible = false
+
+[node name="Panel" type="PanelContainer" parent="ServerHUD" unique_id=1861669542]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -340.0
+offset_bottom = 160.0
+
+[node name="VBox" type="VBoxContainer" parent="ServerHUD/Panel" unique_id=1962062901]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="NetworkLabel" type="Label" parent="ServerHUD/Panel/VBox" unique_id=228237326]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "Netzwerk: –"
+
+[node name="SceneLabel" type="Label" parent="ServerHUD/Panel/VBox" unique_id=1132944006]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "Szene: –"
+
+[node name="TimerLabel" type="Label" parent="ServerHUD/Panel/VBox" unique_id=1342362479]
+layout_mode = 2
+text = "Timer: –"
+
+[node name="TimerBar" type="ProgressBar" parent="ServerHUD/Panel/VBox" unique_id=706492789]
+custom_minimum_size = Vector2(300, 20)
+layout_mode = 2
+value = 100.0
+show_percentage = false
+
+[node name="BtnNext" type="Button" parent="ServerHUD/Panel/VBox" unique_id=1806511377]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+text = "Nächste Szene  [N]"
+
+[node name="BtnToggleAuto" type="Button" parent="ServerHUD/Panel/VBox" unique_id=1806511378]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+text = "Auto-Wechsel: AN  [L]"
+
+[node name="FadeOverlay" type="CanvasLayer" parent="." unique_id=2089580227]
+layer = 20
+visible = false
+
+[node name="ColorRect" type="ColorRect" parent="FadeOverlay" unique_id=1933139243]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0, 0, 0, 0)
+
+[node name="SceneInfoLabel" type="Label" parent="FadeOverlay" unique_id=55412711]
+modulate = Color(1, 1, 1, 0)
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -300.0
+offset_top = -80.0
+offset_right = 300.0
+offset_bottom = 80.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/font_size = 28
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="NetDiag" type="CanvasLayer" parent="." unique_id=1800594825]
+layer = 15
+visible = false
+
+[node name="Panel" type="PanelContainer" parent="NetDiag" unique_id=1645722664]
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -280.0
+offset_top = -220.0
+grow_horizontal = 0
+grow_vertical = 0
+
+[node name="Label" type="Label" parent="NetDiag/Panel" unique_id=225260079]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+
+[node name="CamDolly" type="Node3D" parent="." unique_id=653593422]
+script = ExtResource("2_0xm2m")
+rotation_speed = Vector3(0, 2, 0)
+
+[node name="ServerCamera" type="Camera3D" parent="CamDolly" unique_id=1680103856]
+transform = Transform3D(1, 0, 0, 0, 0.8660254, 0.5, 0, -0.5, 0.8660254, 0, 3.6, 5)
+
+[connection signal="pressed" from="Menu/Center/VBox/BtnFPS" to="." method="_on_btn_fps_pressed"]
+[connection signal="pressed" from="Menu/Center/VBox/BtnFPSLocal" to="." method="_on_btn_fps_local_pressed"]
+[connection signal="pressed" from="Menu/Center/VBox/BtnServer" to="." method="_on_btn_server_pressed"]
+[connection signal="pressed" from="ServerHUD/Panel/VBox/BtnNext" to="." method="_on_btn_next_pressed"]
+[connection signal="pressed" from="ServerHUD/Panel/VBox/BtnToggleAuto" to="." method="_on_btn_toggle_auto_pressed"]

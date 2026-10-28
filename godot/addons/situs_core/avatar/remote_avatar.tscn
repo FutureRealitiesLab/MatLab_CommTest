@@ -1,0 +1,30 @@
+[gd_scene format=3 uid="uid://cbavatar001"]
+
+[ext_resource type="Script" uid="uid://cuqucpfkw4s0c" path="res://addons/situs_core/avatar/remote_avatar.gd" id="1_avatargd"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape_av"]
+radius = 0.28
+height = 1.6
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_body"]
+radius = 0.28
+height = 1.6
+
+[sub_resource type="SphereMesh" id="SphereMesh_head"]
+radius = 0.18
+height = 0.36
+
+[node name="RemoteAvatar" type="CharacterBody3D" unique_id=431800129]
+script = ExtResource("1_avatargd")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=2106803035]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
+shape = SubResource("CapsuleShape_av")
+
+[node name="Body" type="MeshInstance3D" parent="." unique_id=611455243]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
+mesh = SubResource("CapsuleMesh_body")
+
+[node name="Head" type="MeshInstance3D" parent="." unique_id=2070028895]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.75, 0)
+mesh = SubResource("SphereMesh_head")

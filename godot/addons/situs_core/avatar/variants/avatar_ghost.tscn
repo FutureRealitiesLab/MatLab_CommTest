@@ -1,0 +1,50 @@
+[gd_scene format=3 uid="uid://avatarghost1"]
+
+[ext_resource type="Script" path="res://addons/situs_core/avatar/remote_avatar.gd" id="1_avatargd"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape_av"]
+radius = 0.28
+height = 1.6
+
+[sub_resource type="SphereMesh" id="SphereMesh_body"]
+radius = 0.28
+height = 1.4
+
+[sub_resource type="StandardMaterial3D" id="GhostMat_body"]
+transparency = 1
+albedo_color = Color(1, 1, 1, 0.38)
+roughness = 0.2
+metallic = 0.1
+emission_enabled = true
+emission = Color(0.6, 0.7, 1.0, 1.0)
+emission_energy_multiplier = 0.4
+
+[sub_resource type="SphereMesh" id="SphereMesh_head"]
+radius = 0.14
+height = 0.28
+
+[sub_resource type="StandardMaterial3D" id="GhostMat_head"]
+transparency = 1
+albedo_color = Color(1, 1, 1, 0.55)
+roughness = 0.1
+metallic = 0.2
+emission_enabled = true
+emission = Color(0.7, 0.8, 1.0, 1.0)
+emission_energy_multiplier = 0.6
+
+[node name="RemoteAvatar" type="CharacterBody3D"]
+script = ExtResource("1_avatargd")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
+shape = SubResource("CapsuleShape_av")
+
+[node name="Body" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
+mesh = SubResource("SphereMesh_body")
+surface_material_override/0 = SubResource("GhostMat_body")
+
+[node name="Head" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.68, 0)
+mesh = SubResource("SphereMesh_head")
+surface_material_override/0 = SubResource("GhostMat_head")

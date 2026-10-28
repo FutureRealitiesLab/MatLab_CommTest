@@ -1,0 +1,51 @@
+[gd_scene format=3 uid="uid://cbteamtpl1"]
+
+[ext_resource type="Script" uid="uid://bcr2oluy2vwua" path="res://addons/situs_core/templates/scene_hooks.gd" id="1_teamgd"]
+
+[sub_resource type="Environment" id="Env_team"]
+background_mode = 1
+background_color = Color(0.08, 0.08, 0.1, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.2, 0.2, 0.24, 1)
+ambient_light_energy = 0.45
+tonemap_mode = 2
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_team"]
+size = Vector2(3.5, 6)
+
+[sub_resource type="StandardMaterial3D" id="MatFloor_team"]
+albedo_color = Color(0.3, 0.3, 0.32, 1)
+roughness = 0.9
+
+[sub_resource type="BoxShape3D" id="BoxShape_floor"]
+size = Vector3(3.5, 0.2, 6)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_8tlum"]
+
+[node name="TeamScene" type="Node3D" unique_id=1252040837]
+script = ExtResource("1_teamgd")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=921589750]
+environment = SubResource("Env_team")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1090470022]
+transform = Transform3D(0.866025, -0.433013, 0.25, 0, 0.5, 0.866025, -0.5, -0.75, 0.433013, 0, 8, 0)
+light_energy = 1.1
+shadow_enabled = true
+
+[node name="Floor" type="StaticBody3D" parent="." unique_id=1946611216]
+
+[node name="FloorMesh" type="MeshInstance3D" parent="Floor" unique_id=304040404]
+mesh = SubResource("PlaneMesh_team")
+surface_material_override/0 = SubResource("MatFloor_team")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Floor" unique_id=305050505]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, 0)
+shape = SubResource("BoxShape_floor")
+
+[node name="----------" type="Node" parent="." unique_id=310000002]
+
+[node name="StartObjekte" type="Node3D" parent="." unique_id=50943216]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="StartObjekte" unique_id=577791822]
+mesh = SubResource("CylinderMesh_8tlum")
