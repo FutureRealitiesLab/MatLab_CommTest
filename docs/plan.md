@@ -1,10 +1,10 @@
 # Plan: Architektur MATLAB → Server-PC → Brillen (WLAN)
 
-> **Status: Planung, noch nicht umgesetzt.** Dieses Dokument hält die Architekturempfehlung für das spätere Colocated-VR fest. Es wird bewusst noch nichts davon entwickelt.
+> **Status (2026-10-28): Umsetzung im Branch `feature/situs-core` abgeschlossen, Multiplayer-Test an echten Brillen steht aus.** Die Architekturempfehlung unten ist umgesetzt. Offene Arbeit steht in der [TODO-Liste](#todo-liste) am Ende.
 
 ## Kontext
 
-Späteres Ziel: Colocated-VR auf Basis von Hyper-Irrealismus III (Godot 4.6, GL Compatibility Renderer, ENet UDP Port 7777, bis 8 Clients, HTC Vive Focus Vision / Meta Quest). Der MATLAB-Rechner und der Server-PC hängen per Kabel am Router, die Brillen per WLAN.
+Ziel: Colocated-VR auf Basis von Situs Core (Nachfolger des Templates Hyper-Irrealismus III; Godot 4.7, GL Compatibility Renderer, ENet UDP Port 7777, bis 8 Clients, HTC Vive Focus Vision / Focus 3; Meta Quest wird nicht mehr unterstützt, Pico 4 Ultimate später). Der MATLAB-Rechner und der Server-PC hängen per Kabel am Router, die Brillen per WLAN.
 
 Frage: Wie kommen die Simulationsdaten zu den Brillen, und was schickt der Server: fertige Textur oder Rohdaten?
 
@@ -69,3 +69,67 @@ Hebel: Auflösung senken, Sende-Hz senken (die Brille interpoliert lokal), zstd-
 1. Server + 1 Brille, dann 4 und 8 Brillen.
 2. Kennzahlen je Brille: Frame-Rate der Daten, verworfene Frames, RTT, GPU-Zeit des Raymarchings.
 3. Zielwerte prüfen: Volumen mit 32³ bei 20 Hz und 64³ bei 10 Hz (mit Kompression) auf allen 8 Brillen stabil.
+
+
+---
+
+## Umsetzungsstand
+
+Im Code vorhanden und per Headless-Test geprüft (Server + Late-Join-Client mit synthetischen UDP-Paketen):
+
+- Situs Core 1.1.0 als Plugin (`godot/addons/situs_core/`, git subtree von `dist`), Hauptszene `main.tscn` des Plugins.
+- Datenkanal `godot/modul_data_channel/`: ENet-Transferkanal 1, Ack-Flusskontrolle je Client, neuester Frame gewinnt, Late-Join-Cache, optional zstd.
+- `godot/simulation_relay.gd`: Rollen Server / Client / Direct, UDP-Port `sim/udp_port` (4242), `sim/udp_on_clients`.
+- Situs-Einstellungen in den Project Settings: Server-IP, Raumbreite und -länge (4 × 8 m), Rotation (`-90`).
+- Server-Ansicht mit Maus: links drehen, rechts verschieben, Rad zoomen.
+- Installation und Export: `docs/INSTALL.md`, `tools/setup_android.ps1`.
+
+**Nicht geprüft:** echte Brillen, WLAN, echter MATLAB-Sender, Rotationsvorzeichen, Leistung des Raymarchings bei mehreren Brillen.
+
+## TODO-Liste
+
+Reihenfolge = empfohlene Abarbeitung. Kästchen abhaken, wenn erledigt.
+
+### 1. PC-Test mit echtem MATLAB
+
+- [ ] Server in Godot starten (F5, *Als Server starten*), in MATLAB `udpTest`: Volumen erscheint, Overlay (F3) zeigt Frames.
+- [ ] Zweite Instanz als Client (`127.0.0.1`): sieht dieselben Daten, Late Join nach laufendem Stream.
+- [ ] MATLAB neu starten (neue Session-ID): Server und Client setzen sich zurück, kein Hängen.
+- [ ] Mausnavigation auf der Serveransicht prüfen (Drehen, Verschieben, Zoomen).
+
+### 2. Eine Brille
+
+- [ ] Setup-Skript auf dem Export-Rechner laufen lassen (`tools/setup_android.ps1`), APK mit Preset `Vive_LBE` exportieren und installieren.
+- [ ] Server-IP gesetzt, Firewall UDP 7777 (und 4242 bei MATLAB auf anderem Rechner) offen.
+- [ ] Brille verbindet sich, Avatar erscheint auf dem Server.
+- [ ] Volumen kommt über WLAN an. Kennzahlen notieren: Daten-Hz, verworfene Frames, RTT.
+- [ ] **Rotation prüfen:** `room/rotation_deg = -90` entspricht der alten Content-Drehung `90`. Stimmt die Ausrichtung nicht, Vorzeichen umkehren.
+- [ ] Optional: Android-Override für die Server-IP (*Override For… → android*) testen.
+- [ ] GPU-Zeit des Raymarchings im Compatibility-Renderer messen.
+
+### 3. Mehrere Brillen
+
+- [ ] 2, dann 4, dann 8 Brillen. Je Stufe: Daten-Hz, verworfene Frames, RTT und GPU-Zeit je Brille.
+- [ ] Zielwerte aus der Messcheckliste: 32³ bei 20 Hz und 64³ bei 10 Hz (mit Kompression) stabil auf allen Brillen.
+- [ ] Brille zur Laufzeit beitreten und verlassen (Late Join, Reconnect).
+- [ ] Alle Brillen zeigen nahezu dasselbe Bild (Sichtprüfung nebeneinander).
+- [ ] WLAN-Setup dokumentieren (eigenes 5/6-GHz-Netz, Energiesparmodus aus).
+
+### 4. Verbesserungen nach den Messungen
+
+- [ ] Bei Bedarf Jitter-Puffer von einem Frame (Serverzeit liegt schon im Frame).
+- [ ] Bei Bedarf Bandbreite senken: Auflösung, Sende-Hz, Kompression, später Delta oder ROI.
+- [ ] Verhalten großer reliable Frames bei WLAN-Verlusten beobachten, ggf. Frame-Timeout anpassen (`ACK_TIMEOUT_MS`).
+- [ ] Partikel und Automaten (Magic P und C) gesondert auf Datenmenge prüfen.
+
+### 5. Aufräumen und Veröffentlichen
+
+- [ ] Entscheiden, ob die geänderte `godot/export_presets.cfg` committet wird.
+- [ ] Branch `feature/situs-core` nach `main` mergen, sobald Test 1 und 2 bestanden sind.
+- [ ] Tags `v1.0.0` und `v1.1.0` im Situs-Repo setzen und `dist` neu bauen (nach den Tests).
+- [ ] `matlab/udp/PROTOCOL.md` und README auf den Stand der Tests bringen.
+
+### 6. Situs-Seite (siehe `situs-core/docs/plan.md`)
+
+- [ ] `modul_data_channel` als Modul ins Situs-Repo übernehmen.
+- [ ] `sim/*`-Einstellungen im Editor sichtbar machen.
