@@ -29,4 +29,6 @@ func _process(_delta: float) -> void:
 		"Ebenen:        %s" % ", ".join(v.layers.keys()),
 		"Colormap:      %s (C wechselt)" % v.colormap_name(),
 	]
+	if r.has_method("extra_lines"):
+		lines.append_array(r.extra_lines())
 	text = "\n".join(lines)

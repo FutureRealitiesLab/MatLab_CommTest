@@ -1,0 +1,58 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://simulation_scene.gd" id="1_root"]
+[ext_resource type="Script" path="res://scene_view.gd" id="2_view"]
+[ext_resource type="Script" path="res://box_outline.gd" id="3_box"]
+[ext_resource type="Script" path="res://debug_overlay.gd" id="4_dbg"]
+
+[sub_resource type="Environment" id="Environment_1"]
+background_mode = 1
+background_color = Color(0.04, 0.05, 0.08, 1)
+
+[sub_resource type="BoxShape3D" id="BoxShape_floor"]
+size = Vector3(100, 0.2, 100)
+
+[node name="SimulationScene" type="Node3D"]
+script = ExtResource("1_root")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_1")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866, -0.25, 0.433, 0, 0.866, 0.5, -0.5, -0.433, 0.75, 0, 3, 0)
+
+[node name="Floor" type="StaticBody3D" parent="."]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Floor"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, 0)
+shape = SubResource("BoxShape_floor")
+
+[node name="ServerCamera" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.9, 0.43, 0, -0.43, 0.9, 0, 6, 9)
+
+[node name="Plot" type="Node3D" parent="."]
+
+[node name="View" type="Node3D" parent="Plot"]
+script = ExtResource("2_view")
+receiver_path = NodePath("/root/SimulationRelay")
+outline_path = NodePath("../Outline")
+floor_outline_path = NodePath("../FloorOutline")
+
+[node name="Outline" type="MeshInstance3D" parent="Plot"]
+script = ExtResource("3_box")
+
+[node name="FloorOutline" type="MeshInstance3D" parent="Plot"]
+script = ExtResource("3_box")
+
+[node name="DebugLayer" type="CanvasLayer" parent="."]
+
+[node name="Stats" type="Label" parent="DebugLayer"]
+offset_left = 12.0
+offset_top = 12.0
+offset_right = 460.0
+offset_bottom = 260.0
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+script = ExtResource("4_dbg")
+receiver_path = NodePath("/root/SimulationRelay")
+view_path = NodePath("../../Plot/View")

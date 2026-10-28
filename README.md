@@ -84,6 +84,30 @@ Jedes Datagramm beginnt mit 20 Byte (little-endian): Magic (4 Byte ASCII), Sessi
 
 Port und Bind-Adresse stehen an der Node `Receiver` (`port`, `bind_address`, `recv_buffer_size`). Es ist IPv4 gebunden (`0.0.0.0`).
 
+## Situs Core: Server und mehrere Brillen
+
+Das Godot-Projekt startet jetzt mit [Situs Core](https://github.com/FutureRealitiesLab/Situs-Core) (Subtree in `godot/addons/situs_core`, Renderer GL Compatibility). Situs liefert Server, Clients, Avatare und die Spieler. Die Simulation läuft als Szene darin.
+
+```
+MATLAB --UDP 4242--> Server (godot, "Als Server starten")
+                       SimulationRelay empfängt, zeigt an und veröffentlicht
+                       --ENet 7777, Kanal 1 (modul_data_channel)--> Brillen und FPS-Clients
+```
+
+| Datei | Aufgabe |
+|---|---|
+| `simulation_scene.tscn/.gd` | Szene mit `scene_view.gd`, Raumrahmen und Overlay. Raumgröße aus den Situs-Settings |
+| `simulation_relay.gd` | Autoload. Server: UDP empfangen und veröffentlichen. Client: Frames vom Datenkanal. Beide lösen das Signal `frame_received` für `scene_view.gd` aus |
+| `modul_data_channel/` | Generischer Datenkanal vom Server zu den Clients ([README](godot/modul_data_channel/README.md)) |
+
+**Einstellungen** (Project Settings, Abschnitt *Situs Core*): `network/server_ip`, `room/width_m` (4), `room/length_m` (8), `room/rotation_deg`. Die Raumdrehung wirkt auf den XR-Ursprung der Brillen, nicht auf den Inhalt. Der frühere Wert `room_rotation_deg = 90` an `View` entspricht jetzt `rotation_deg = -90` (Vorzeichen an der Brille prüfen). Weitere Details in der Situs-Core-README.
+
+**Eigene Settings dieses Projekts** (optional, in `project.godot` unter `[sim]`): `sim/udp_port` (4242) und `sim/udp_on_clients`. Mit `udp_on_clients = true` lauscht jede Instanz selbst auf UDP, ohne Server und Relay. Das ist der Weg für eine einzelne Brille, an die MATLAB direkt sendet.
+
+**Start:** Server-PC: F5, „Als Server starten“. Brillen: APK mit der Server-IP in den Settings. Desktop-Test: zweite Instanz mit „Als Spieler starten (Lokal / 127.0.0.1)“. Im Overlay (F3) zeigen „Rolle“ und „Relay“ den Stand.
+
+**Nicht mehr aktuell:** `main.tscn` mit `orbit_camera.gd` und `xr_rig.gd` (Flug, LBE-Tag) ist nicht mehr die Startszene. Sie bleibt als eigenständiger Betrachter ohne Situs erhalten (auch der `selftest` nutzt sie). Die Abschnitte „VR mit SteamVR“ und „APK für die Vive Focus Vision“ unten beschreiben diesen alten Betrachter.
+
 ## VR mit SteamVR (HTC Vive am PC)
 
 Das Projekt startet automatisch in VR, wenn SteamVR läuft und ein Headset erkannt wird (OpenXR). Ohne Headset bleibt die Desktop-Ansicht mit Orbit-Kamera. Die Konsole meldet `XR: OpenXR aktiv.` bzw. `XR: kein OpenXR-Headset, Desktop-Ansicht.`
