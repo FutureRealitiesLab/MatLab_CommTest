@@ -4,6 +4,8 @@ Echtzeit-Kopplung: MATLAB berechnet zeitveränderliche Felder, Partikel oder Zel
 
 Das Protokoll ist **typisiert**: Ein vierstelliger Magic-String (z. B. `S3v.`, `V2q0`, `P2p1`, `C2m2`) wählt Datenformat und Darstellung. Studierende schreiben nur ihre Simulationsschleife und rufen `udpSend(u, data, frameid)` auf.
 
+**Neu auf einem Rechner?** Siehe [Installation und Konfiguration](docs/INSTALL.md).
+
 ```
 matlab/udp/
   udpOpen.m        Sender anlegen (Magic, Ziel-IP, Port, Wertebereich)
@@ -16,22 +18,30 @@ matlab/udp/
   PROTOCOL.md      Paketformat (englisch, maßgeblich)
   HEADER_SESSION.md  Session-ID
 godot/
-  project.godot, main.tscn
+  project.godot, export_presets.cfg
+  addons/situs_core/       Situs Core (git subtree, nicht hier ändern)
+  simulation_scene.tscn/.gd  Startszene der Simulation (in Situs)
+  simulation_relay.gd      Autoload: UDP empfangen (Server) oder Frames vom Datenkanal (Clients)
+  modul_data_channel/      Datenkanal Server → Clients (generisch)
   udp_receiver.gd  UDP-Empfang, Session-/Frame-Logik, Chunk-Zusammenbau, Warteschlange
   scene_view.gd    Darstellung je Magic (Ebenen), Raum 4 × 8 × 2 m, Einpassen
   field_image.gdshader, field_height.gdshader, field_slice.gdshader, volume_raymarch.gdshader
   colormap.gdshaderinc   Farbskalen (rainbow, hot, gray, viridis)
   box_outline.gd, orbit_camera.gd, debug_overlay.gd
+  main.tscn, xr_rig.gd     alter eigenständiger Betrachter ohne Situs
   selftest.gd      Test ohne Netzwerk
 docs/
-  plan.md          Architektur MATLAB → Server-PC → Brillen (Planung)
+  INSTALL.md       Einrichtung auf einem neuen Rechner, Inhalt des Setup-Skripts
+  plan.md          Architektur MATLAB → Server-PC → Brillen
+tools/
+  setup_android.ps1  richtet einen Rechner für den Android-Export ein
 ```
 
 > **Veraltet:** `matlab/send_via_udp.m`, `udp_config.m`, `simulate_field.m` und `simulate_surface.m` gehören zum alten Protokoll v2 (Magic `0x4456`, Konfigurationspakete). Der neue Godot-Empfänger versteht dieses Format **nicht** mehr. Für neue Simulationen `matlab/udp/` verwenden.
 
 ## Schnellstart
 
-1. **Godot 4.7**: `godot/project.godot` importieren und starten (F5). Das Overlay zeigt "lauscht" auf Port 4242.
+1. **Godot 4.7.2**: `godot/project.godot` importieren und starten (F5), dann *Als Server starten*. Das Overlay (F3) zeigt "lauscht" auf Port 4242. Einrichtung des Rechners: [docs/INSTALL.md](docs/INSTALL.md).
 2. **MATLAB**: `matlab/udp/` zum Pfad hinzufügen und senden:
 
 ```matlab
@@ -126,9 +136,9 @@ Auch beim F6-Test der `simulation_scene.tscn` allein empfängt die Instanz direk
 
 **Start:** Server-PC: F5, „Als Server starten“. Die Serveransicht lässt sich mit der Maus navigieren: links ziehen dreht, rechts ziehen verschiebt, Mausrad zoomt. Brillen: APK mit der Server-IP in den Settings. Desktop-Test: zweite Instanz mit „Als Spieler starten (Lokal / 127.0.0.1)“. Im Overlay (F3) zeigen „Rolle“ und „Relay“ den Stand.
 
-**Nicht mehr aktuell:** `main.tscn` mit `orbit_camera.gd` und `xr_rig.gd` (Flug, LBE-Tag) ist nicht mehr die Startszene. Sie bleibt als eigenständiger Betrachter ohne Situs erhalten (auch der `selftest` nutzt sie). Die Abschnitte „VR mit SteamVR“ und „APK für die Vive Focus Vision“ unten beschreiben diesen alten Betrachter.
+**Nicht mehr aktuell:** `main.tscn` mit `orbit_camera.gd` und `xr_rig.gd` (Flug, LBE-Tag) ist nicht mehr die Startszene. Sie bleibt als eigenständiger Betrachter ohne Situs erhalten (auch der `selftest` nutzt sie). Der folgende Abschnitt „VR mit SteamVR“ beschreibt diesen alten Betrachter.
 
-## VR mit SteamVR (HTC Vive am PC)
+## VR mit SteamVR (alter Betrachter ohne Situs)
 
 Das Projekt startet automatisch in VR, wenn SteamVR läuft und ein Headset erkannt wird (OpenXR). Ohne Headset bleibt die Desktop-Ansicht mit Orbit-Kamera. Die Konsole meldet `XR: OpenXR aktiv.` bzw. `XR: kein OpenXR-Headset, Desktop-Ansicht.`
 
@@ -146,40 +156,11 @@ Die Controller werden als kleine Quader dargestellt. Der Startpunkt liegt auf de
 
 Aufbau: `godot/xr_rig.gd` liegt auf `XRRig` (XROrigin3D mit Kamera und zwei Controllern). Die Projekteinstellungen `xr/openxr/enabled` und `xr/shaders/enabled` sind gesetzt. Die Eingaben kommen aus der Standard-Action-Map von Godot (`primary` = Stick oder Trackpad).
 
-## APK für die Vive Focus Vision (Standalone)
+## APK für die Brille (HTC Vive Focus 3 und Vision)
 
-Das Projekt exportiert zwei APKs aus **demselben Code**. Sie unterscheiden sich nur im Feature-Tag und damit in der Steuerung:
+Einrichtung des Rechners, Export-Presets und was das Setup-Skript installiert: **[docs/INSTALL.md](docs/INSTALL.md)**. Kurz: `tools/setup_android.ps1` ausführen, Server-IP in den Project Settings setzen, Preset `Vive_LBE` exportieren und per `adb` installieren.
 
-| Preset | Datei | Tag | Steuerung | Start |
-|---|---|---|---|---|
-| `Vive_Stationaer` | `godot/build/vive_stationaer.apk` | – | Fliegen per Controller (wie am PC) | 1,5 m vor der Längskante der 4 × 8 m-Fläche |
-| `Vive_LBE` | `godot/build/vive_lbe.apk` | `lbe` | **keine** Stick-Bewegung, nur Gehen im Raum | Raummitte (`roomscale_origin` an `XRRig`) |
-
-Das Skript `xr_rig.gd` fragt beim Start `OS.has_feature("lbe")` ab. Der Tag wird beim Export in die APK eingebrannt (Preset → Features → eigene Feature-Tags), die Brille muss nichts melden. Am PC und im Editor bleibt es beim Fliegen; die Konsole zeigt `XR: Locomotion FLY` bzw. `ROOMSCALE`.
-
-**Renderer:** Auf dem PC läuft `mobile` (Vulkan), auf Android automatisch `gl_compatibility` (Projekteinstellung `renderer/rendering_method.mobile`). Die Shader laufen unter beiden. Mit `--rendering-method gl_compatibility` kannst du den Android-Pfad am PC prüfen. Die Vive Focus Vision wird laut Godot-Doku über das Khronos-Plugin des OpenXR-Vendors-Plugins angesprochen (`xr_features/enable_khronos_plugin`).
-
-**Daten:** Die Brille hört selbst auf UDP-Port 4242 (WLAN). In MATLAB `udpOpen(address="<IP der Brille>")` setzen. Die Brille bekommt per DHCP evtl. wechselnde Adressen: im Router eine feste IP reservieren. Eine Brille entspricht einem Absender; mehrere Brillen brauchen das Relay aus [docs/plan.md](docs/plan.md).
-
-**Export per Kommandozeile** (aus dem Repo-Ordner, Godot 4.7.2):
-
-```powershell
-$env:JAVA_HOME = "C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot"
-Godot --headless --path godot --export-debug "Vive_LBE" build/vive_lbe.apk
-adb install -r godot/build/vive_lbe.apk
-```
-
-Im Editor: *Projekt → Exportieren*. Die APKs sind Debug-Builds mit dem Godot-Debug-Keystore und landen nicht im Repo.
-
-### Einrichtung auf einem anderen Rechner
-
-`godot/export_presets.cfg` liegt im Repo (Godot 4 speichert Zugangsdaten getrennt in `.godot/export_credentials.cfg`). Was nicht im Repo liegt, installiert das Skript:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File tools\setup_android.ps1
-```
-
-Voraussetzung: Windows mit `winget`, Godot 4.7.2 einmal gestartet (damit die Editoreinstellungen existieren), danach Godot schließen und das Skript starten. Es installiert JDK 17, das Android SDK (Platform 36, Build-Tools 36.1.0, NDK 29.0.14206865, CMake) und die Export-Templates, legt das Android-Build-Template (`godot/android`) und das OpenXR-Vendors-Plugin (`godot/addons/godotopenxrvendors`) an, erzeugt den Debug-Keystore und trägt die Pfade in die Editoreinstellungen ein. Etwa 4 GB Download. Das Skript akzeptiert dabei die Android-SDK-Lizenzen. Was es nicht tut: Entwicklermodus an der Brille aktivieren und per USB oder WLAN-`adb` verbinden.
+Die Brille bekommt ihre Daten im Normalfall vom Server über den Datenkanal (siehe „Situs Core“). Nur für eine einzelne Brille ohne Server kann MATLAB direkt an sie senden (`sim/udp_on_clients`, siehe oben). Die Brille bekommt per DHCP evtl. wechselnde Adressen: im Router eine feste IP reservieren.
 
 ## Tests
 
@@ -197,8 +178,9 @@ Begrenzend ist meist der MATLAB-Sender: Ein `write()` kostet etwa 10 ms je Datag
 ## Netzwerk-Tipps
 
 - **IP des Godot-Rechners:** `ipconfig` (Windows), `ifconfig` (macOS), `ip a` (Linux). Beide Rechner im selben Subnetz. "AP/Client-Isolation" im Router ausschalten. Test: `ping <Godot-IP>`.
-- **Firewall (Godot-Rechner):** eingehend UDP 4242 freigeben, in einer Admin-PowerShell:
+- **Firewall (Server-PC):** eingehend UDP 7777 (Brillen verbinden sich per ENet) und, wenn MATLAB auf einem anderen Rechner läuft, UDP 4242 freigeben, in einer Admin-PowerShell:
   ```powershell
+  New-NetFirewallRule -DisplayName "Situs ENet 7777" -Direction Inbound -Protocol UDP -LocalPort 7777 -Action Allow
   New-NetFirewallRule -DisplayName "Godot UDP 4242" -Direction Inbound -Protocol UDP -LocalPort 4242 -Action Allow
   ```
 - **Nur ein Programm pro Port:** `udpListen` (MATLAB) und der Godot-Betrachter können nicht gleichzeitig auf Port 4242 hören.
@@ -206,4 +188,4 @@ Begrenzend ist meist der MATLAB-Sender: Ein `write()` kostet etwa 10 ms je Datag
 
 ## Projektstand und Ausblick
 
-Das Godot-Projekt nutzt am PC den `mobile`-Renderer (Vulkan), auf Android `gl_compatibility`, und ist als Godot 4.7 gespeichert. Das Zielsystem (Hyper-Irrealismus III) verwendet laut [docs/plan.md](docs/plan.md) Godot 4.6 mit GL Compatibility. Beim Übernehmen in das VR-Template muss der Shader dort früh getestet werden. Dort gilt auch: Texturen als `R8` (uint8) verwenden. Die Architektur für Server und Brillen steht in [docs/plan.md](docs/plan.md).
+Das Godot-Projekt läuft mit Godot 4.7 und dem GL-Compatibility-Renderer (am PC und auf der Brille) und nutzt Situs Core als Host. Die Shader sind auf der Vive Focus Vision im Standalone-Betrieb getestet. Der Betrieb mit Server und mehreren Brillen ist in Godot headless geprüft, aber noch nicht im WLAN mit mehreren Brillen. Texturen werden als `R8` (uint8) verwendet. Die Architektur für Server und Brillen steht in [docs/plan.md](docs/plan.md).
