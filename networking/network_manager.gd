@@ -123,11 +123,23 @@ func _do_connect() -> void:
 
 ## Sendet die eigene Position an den Server; der Server leitet sie weiter.
 ## Wird von xr_player.gd und fps_player.gd jeden Frame aufgerufen.
-func send_player_state(body_pos: Vector3, head_pos: Vector3, head_rot: Vector3) -> void:
+## Controller (optional, nur XR): hands = [links_pos, links_rot, rechts_pos, rechts_rot]
+## (Weltkoordinaten, Rotation als Euler), hands_mask = Bit 0 links, Bit 1 rechts getrackt.
+func send_player_state(body_pos: Vector3, head_pos: Vector3, head_rot: Vector3,
+		hands: PackedVector3Array = PackedVector3Array(), hands_mask: int = 0) -> void:
 	# Nur senden wenn wirklich mit einem Server verbunden (nicht im F6-Einzeltest)
 	if not client_connected_flag:
 		return
-	_server_receive_state.rpc_id(1, multiplayer.get_unique_id(), body_pos, head_pos, head_rot)
+	_server_receive_state.rpc_id(1, multiplayer.get_unique_id(), body_pos, head_pos, head_rot, hands, hands_mask)
+
+
+## Gibt den empfangenen Zustand an den Avatar weiter. Varianten ohne update_hands()
+## (z. B. remote_avatar.gd) zeigen einfach keine Controller.
+func _apply_state(avatar: Node, body_pos: Vector3, head_pos: Vector3, head_rot: Vector3,
+		hands: PackedVector3Array, hands_mask: int) -> void:
+	avatar.update_transform(body_pos, head_pos, head_rot)
+	if avatar.has_method("update_hands"):
+		avatar.update_hands(hands, hands_mask)
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -140,15 +152,17 @@ func _server_receive_state(
 		sender_id: int,
 		body_pos: Vector3,
 		head_pos: Vector3,
-		head_rot: Vector3) -> void:
+		head_rot: Vector3,
+		hands: PackedVector3Array,
+		hands_mask: int) -> void:
 	if not multiplayer.is_server():
 		return
 	# Server-eigenen Avatar aktualisieren (für Server-Viewport-Anzeige)
 	if SceneManager.remote_avatars.has(sender_id):
-		SceneManager.remote_avatars[sender_id].update_transform(body_pos, head_pos, head_rot)
+		_apply_state(SceneManager.remote_avatars[sender_id], body_pos, head_pos, head_rot, hands, hands_mask)
 	for peer_id: int in multiplayer.get_peers():
 		if peer_id != sender_id:
-			_client_receive_state.rpc_id(peer_id, sender_id, body_pos, head_pos, head_rot)
+			_client_receive_state.rpc_id(peer_id, sender_id, body_pos, head_pos, head_rot, hands, hands_mask)
 
 
 ## Läuft auf dem Client: Empfängt relayten State und aktualisiert Remote-Avatar.
@@ -158,9 +172,41 @@ func _client_receive_state(
 		sender_id: int,
 		body_pos: Vector3,
 		head_pos: Vector3,
-		head_rot: Vector3) -> void:
+		head_rot: Vector3,
+		hands: PackedVector3Array,
+		hands_mask: int) -> void:
 	if SceneManager.remote_avatars.has(sender_id):
-		SceneManager.remote_avatars[sender_id].update_transform(body_pos, head_pos, head_rot)
+		_apply_state(SceneManager.remote_avatars[sender_id], body_pos, head_pos, head_rot, hands, hands_mask)
+
+
+## Meldet den eigenen Sprung (Hocke, dann Hochspringen) an den Server; der Server
+## leitet ihn an alle anderen weiter.
+func send_jump() -> void:
+	if not client_connected_flag:
+		return
+	_server_receive_jump.rpc_id(1, multiplayer.get_unique_id())
+
+
+@rpc("any_peer", "reliable", "call_remote")
+func _server_receive_jump(sender_id: int) -> void:
+	if not multiplayer.is_server():
+		return
+	_trigger_avatar_jump(sender_id)
+	for peer_id: int in multiplayer.get_peers():
+		if peer_id != sender_id:
+			_client_receive_jump.rpc_id(peer_id, sender_id)
+
+
+@rpc("authority", "reliable", "call_remote")
+func _client_receive_jump(sender_id: int) -> void:
+	_trigger_avatar_jump(sender_id)
+
+
+func _trigger_avatar_jump(sender_id: int) -> void:
+	if SceneManager.remote_avatars.has(sender_id):
+		var avatar: Node = SceneManager.remote_avatars[sender_id]
+		if avatar.has_method("trigger_jump"):
+			avatar.trigger_jump()
 
 
 # ── Spieler-Join/Leave-Benachrichtigungen ────────────────────────
