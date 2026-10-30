@@ -36,6 +36,10 @@ const SEND_RATE: float = 0.05
 @export var jump_cooldown: float = 3.0
 
 var _send_timer: float = 0.0
+var _hand_mat: StandardMaterial3D = null     # Spielerfarbe
+var _flash_mat: StandardMaterial3D = null    # weißes Aufblitzen bei Tastendruck
+var _flash_t: Array = [0.0, 0.0]             # verbleibende Blitzzeit links, rechts
+var _flash_on: Array = [false, false]
 var _boost_phase: int = 0          # 0 = am Boden, 1 = Aufstieg, 2 = Gleiten
 var _boost_time: float = 0.0
 var _boost_applied: float = 0.0    # aktuell auf den Ursprung addierte Höhe (Meter)
@@ -55,9 +59,11 @@ func _ready() -> void:
 	$XRCamera3D.make_current()
 	if has_node("LeftHand"):
 		$LeftHand.button_pressed.connect(_on_button)
+		$LeftHand.button_pressed.connect(_flash_hand.bind(0))
 		$LeftHand.input_vector2_changed.connect(_on_left_stick)
 	if has_node("RightHand"):
 		$RightHand.button_pressed.connect(_on_button)
+		$RightHand.button_pressed.connect(_flash_hand.bind(1))
 		$RightHand.button_pressed.connect(_on_right_button)
 		$RightHand.input_vector2_changed.connect(_on_right_stick)
 
@@ -125,7 +131,7 @@ func _on_right_stick(_action: String, value: Vector2) -> void:
 
 func _process(delta: float) -> void:
 	_update_boost(delta)
-	_update_hand_visuals()
+	_update_hand_visuals(delta)
 
 
 ## Ein Controller gilt nur als aktiv, wenn er Tracking-Daten liefert und nicht auf dem
@@ -135,24 +141,39 @@ func _hand_tracked(ctrl: XRController3D) -> bool:
 			and ctrl.position.length() > 0.02
 
 
-## Zeigt die eigenen Controller nur, wenn sie aktiv sind, in der eigenen Spielerfarbe.
-func _update_hand_visuals() -> void:
+## Kontrolle: Beim Drücken einer Controller-Taste blitzt der Controller-Quader kurz weiß auf.
+func _flash_hand(_button_name: String, hand_index: int) -> void:
+	_flash_t[hand_index] = 0.15
+
+
+## Zeigt die eigenen Controller nur, wenn sie aktiv sind, in der eigenen Spielerfarbe
+## (weiß beim Tastendruck).
+func _update_hand_visuals(delta: float) -> void:
+	if _flash_mat == null:
+		_flash_mat = StandardMaterial3D.new()
+		_flash_mat.albedo_color = Color.WHITE
+		_flash_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	var color := Color.WHITE
 	if GameState.my_id != 0 and GameState.player_colors.has(GameState.my_id):
 		color = GameState.player_colors[GameState.my_id]
-	if color != _hand_color:
+	if _hand_mat == null or color != _hand_color:
 		_hand_color = color
-		var mat := StandardMaterial3D.new()
-		mat.albedo_color = color
-		mat.roughness = 0.5
-		for hand_name: String in ["LeftHand", "RightHand"]:
-			var mesh := get_node_or_null(hand_name + "/ControllerMesh") as MeshInstance3D
+		_hand_mat = StandardMaterial3D.new()
+		_hand_mat.albedo_color = color
+		_hand_mat.roughness = 0.5
+		_flash_on = [true, true]  # Material neu setzen (siehe unten)
+	for i in 2:
+		var ctrl := get_node_or_null("LeftHand" if i == 0 else "RightHand") as XRController3D
+		if ctrl == null:
+			continue
+		ctrl.visible = _hand_tracked(ctrl)
+		_flash_t[i] = maxf(0.0, _flash_t[i] - delta)
+		var flashing: bool = _flash_t[i] > 0.0
+		if flashing != _flash_on[i]:
+			_flash_on[i] = flashing
+			var mesh := ctrl.get_node_or_null("ControllerMesh") as MeshInstance3D
 			if mesh != null:
-				mesh.set_surface_override_material(0, mat)
-	for hand_name: String in ["LeftHand", "RightHand"]:
-		var ctrl := get_node_or_null(hand_name) as XRController3D
-		if ctrl != null:
-			ctrl.visible = _hand_tracked(ctrl)
+				mesh.set_surface_override_material(0, _flash_mat if flashing else _hand_mat)
 
 
 func _physics_process(delta: float) -> void:
