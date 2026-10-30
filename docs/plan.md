@@ -176,5 +176,10 @@ Entscheidung (2026-10-30): **ein Projekt, ein `main`, zwei Einstiege.** Keine ge
 
 ### 11. Neue Funktionen
 
-- [ ] **Buffer-File (Offline-Playmode):** MATLAB-Frames in eine Datei aufzeichnen und ohne MATLAB abspielen. Muss auch im PC-Solo-Modus laufen. Idee: PC-Solo ist ein lokaler Server (Rolle Server ohne Clients), das Abspielen speist wie ein UDP-Empfang in `simulation_relay` ein.
-- [ ] **Freeze:** Simulation für alle gemeinsam pausieren, serverseitig gesteuert. Der Server hört auf zu publizieren, Late Joiner bekommen den letzten Frame schon heute. Ein Zustand „eingefroren“ muss mit übertragen werden (Anzeige auf den Brillen).
+- [ ] **Buffer-File (Offline-Playmode):** MATLAB-Frames aufzeichnen und ohne MATLAB abspielen. Ablauf in der Server-UI:
+  - Record-Button am Server, beim Stoppen ein Speichern-Dialog.
+  - Quellenauswahl: *Livestream* oder *Buffer-File*. Bei *Buffer-File* öffnet ein Datei-Dialog die Auswahl.
+  - Das Abspielen speist wie ein UDP-Empfang in `simulation_relay` ein, die Brillen merken keinen Unterschied (Late Join, Datenkanal wie gehabt).
+  - Muss auch im PC-Solo-Modus laufen. Idee: PC-Solo = lokaler Server mit lokalem Spieler, dann gibt es nur einen Einspeisepunkt.
+- [ ] **Freeze:** Simulation für alle gemeinsam pausieren, vom Server gesteuert. Der Server hört auf zu publizieren, Late Joiner bekommen den letzten Frame schon heute. Der Zustand „eingefroren“ wird mit übertragen und auf den Brillen angezeigt.
+- [ ] **PC-Solo als lokaler Server mit First-Person-Ansicht** prüfen (statt eigener `desktop_main.tscn`): Situs bringt den FPS-Spieler (`player/fps_player.gd`, Startmodus *Als Spieler starten*) schon mit. Es fehlt die Verknüpfung mit Server-Rolle und Orbit-Ansicht. Siehe auch Punkt 9.
