@@ -10,6 +10,8 @@ extends XROrigin3D
 ##   Thumbstick X       → Links/Rechts-Rotation (beide Controller, max-Betrag gewinnt)
 
 
+const SitusSettings := preload("res://addons/situs_core/core/situs_settings.gd")
+
 ## Sendeintervall in Sekunden (20 Hz)
 const SEND_RATE: float = 0.05
 
@@ -22,7 +24,28 @@ const SEND_RATE: float = 0.05
 ## Drehgeschwindigkeit (Grad/s)
 @export var rotation_speed: float = 60.0
 
+## Boost-Sprung: Auslöser sind die B-Taste (nur rechter Controller) oder Hocke und
+## Hochspringen. Danach steigt der Spieler schnell auf die Sprunghöhe und gleitet langsam
+## zurück. Höhe und Zeiten: Project Settings → Situs Core → Jump. Während des Flugs sind
+## weitere Sprünge gesperrt.
+## Hocke: so viel muss der Kopf unter die normale Höhe gehen (Meter)
+@export var jump_crouch_drop: float = 0.4
+## Mindest-Steiggeschwindigkeit des Kopfes beim Hochspringen (m/s)
+@export var jump_speed: float = 1.5
+## Pause nach einem Sprung (Sekunden), zusätzlich zur Sperre während des Flugs
+@export var jump_cooldown: float = 3.0
+
 var _send_timer: float = 0.0
+var _boost_phase: int = 0          # 0 = am Boden, 1 = Aufstieg, 2 = Gleiten
+var _boost_time: float = 0.0
+var _boost_applied: float = 0.0    # aktuell auf den Ursprung addierte Höhe (Meter)
+var _jump_baseline: float = -1.0   # normale Kopfhöhe (langsam nachgeführt)
+var _jump_prev_h: float = 0.0
+var _jump_vy: float = 0.0
+var _jump_crouched: bool = false
+var _jump_crouch_t: float = 0.0
+var _jump_crouch_min: float = 0.0
+var _jump_cool: float = 0.0
 var _hand_color: Color = Color(0, 0, 0, 0)
 var _stick_l: Vector2 = Vector2.ZERO
 var _stick_r: Vector2 = Vector2.ZERO
@@ -35,6 +58,7 @@ func _ready() -> void:
 		$LeftHand.input_vector2_changed.connect(_on_left_stick)
 	if has_node("RightHand"):
 		$RightHand.button_pressed.connect(_on_button)
+		$RightHand.button_pressed.connect(_on_right_button)
 		$RightHand.input_vector2_changed.connect(_on_right_stick)
 
 
@@ -47,6 +71,50 @@ func _on_button(button_name: String) -> void:
 		SceneManager.advance_scene()
 
 
+## B-Taste (nur rechter Controller) löst den Sprung aus.
+func _on_right_button(button_name: String) -> void:
+	if button_name == "by_button":
+		start_boost()
+
+
+## Startet den Boost-Sprung. Ignoriert, wenn abgeschaltet oder der Spieler noch fliegt.
+func start_boost() -> void:
+	if not SitusSettings.get_jump_enabled() or _boost_phase != 0:
+		return
+	_boost_phase = 1
+	_boost_time = 0.0
+	_jump_cool = jump_cooldown
+
+
+## Höhe des echten Bodens (ohne Sprung). Der Körper des Avatars bleibt hier, auch wenn
+## der Kopf beim Sprung oben ist (Kollisionsschutz für die anderen im Raum).
+func get_floor_y() -> float:
+	return global_position.y - _boost_applied
+
+
+## Hebt den XR-Ursprung an und lässt ihn wieder herabgleiten.
+func _update_boost(delta: float) -> void:
+	var height := SitusSettings.get_jump_height()
+	var offset := 0.0
+	if _boost_phase == 1:
+		_boost_time += delta
+		var x := clampf(_boost_time / maxf(SitusSettings.get_jump_rise(), 0.05), 0.0, 1.0)
+		offset = height * (1.0 - pow(1.0 - x, 3.0))   # schnell am Anfang, sanft oben
+		if x >= 1.0:
+			_boost_phase = 2
+			_boost_time = 0.0
+	elif _boost_phase == 2:
+		_boost_time += delta
+		var x := clampf(_boost_time / maxf(SitusSettings.get_jump_glide(), 0.5), 0.0, 1.0)
+		offset = height * (1.0 + cos(PI * x)) / 2.0   # langsam los, langsam ankommen
+		if x >= 1.0:
+			_boost_phase = 0
+			offset = 0.0
+	if offset != _boost_applied:
+		global_position.y += offset - _boost_applied
+		_boost_applied = offset
+
+
 func _on_left_stick(_action: String, value: Vector2) -> void:
 	_stick_l = value
 
@@ -56,6 +124,7 @@ func _on_right_stick(_action: String, value: Vector2) -> void:
 
 
 func _process(delta: float) -> void:
+	_update_boost(delta)
 	_update_hand_visuals()
 
 
@@ -92,6 +161,39 @@ func _physics_process(delta: float) -> void:
 		_send_timer = 0.0
 		_broadcast_position()
 	_do_locomotion(delta)
+	_detect_jump(delta)
+
+
+## Hocke, dann Hochspringen erkennen (Kopfhöhe im Tracking-Raum, nur Auswertung der Höhe).
+## Spätere Ansätze für den Fall, dass das nicht zuverlässig auslöst: docs/JUMP_FALLBACKS.md
+func _detect_jump(delta: float) -> void:
+	if delta <= 0.0 or not SitusSettings.get_jump_enabled():
+		return
+	var cam := $XRCamera3D as XRCamera3D
+	# Während des Flugs hebt sich der Ursprung mit: nur die Kopfhöhe relativ zum Ursprung zählt.
+	var h: float = cam.position.y
+	_jump_vy = lerpf(_jump_vy, (h - _jump_prev_h) / delta, 0.5)
+	_jump_prev_h = h
+	_jump_cool = maxf(0.0, _jump_cool - delta)
+	if _jump_baseline < 0.0:
+		if h > 0.8:
+			_jump_baseline = h
+		return
+	if not _jump_crouched:
+		if h < _jump_baseline - jump_crouch_drop:
+			_jump_crouched = true
+			_jump_crouch_t = 0.0
+			_jump_crouch_min = h
+		elif absf(_jump_vy) < 0.3:
+			_jump_baseline = lerpf(_jump_baseline, h, 1.0 - exp(-delta / 3.0))
+		return
+	_jump_crouch_t += delta
+	_jump_crouch_min = minf(_jump_crouch_min, h)
+	if _jump_vy > jump_speed and h > _jump_crouch_min + 0.15 and _jump_cool <= 0.0:
+		_jump_crouched = false
+		start_boost()
+	elif h > _jump_baseline - 0.15 or _jump_crouch_t > 2.5:
+		_jump_crouched = false  # wieder aufgestanden oder zu lange unten
 
 
 func _do_locomotion(delta: float) -> void:
@@ -137,7 +239,7 @@ func _broadcast_position() -> void:
 	var cam: XRCamera3D = $XRCamera3D
 	if not is_instance_valid(cam):
 		return
-	var body_floor := Vector3(cam.global_position.x, global_position.y, cam.global_position.z)
+	var body_floor := Vector3(cam.global_position.x, get_floor_y(), cam.global_position.z)
 	var hands := PackedVector3Array()
 	var mask := 0
 	for i in 2:

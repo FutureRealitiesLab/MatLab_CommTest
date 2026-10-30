@@ -13,22 +13,20 @@ extends CharacterBody3D
 ## Die Schleppe orientiert sich am Avatar aus dem Projekt Spatial Encounters
 ## (siehe docs/THIRD_PARTY.md).
 
-## Wie die Ringe nachziehen:
-## LINEAR = ein träger Bodenpunkt folgt dem Kopf, die Ringe liegen gleichmäßig auf
-##          der Linie vom Bodenpunkt zum Kopf (Schweif nach hinten, wie im Original).
-## DAMPED = jeder Ring hat eine eigene Dämpfung (älteres Verhalten, bleibt vorerst
-##          zum Vergleich erhalten).
-enum TrailMode { LINEAR, DAMPED }
-
-@export var trail_mode: TrailMode = TrailMode.LINEAR
-
-## Responsivität des Bodenpunkts im Modus LINEAR (1/Sekunde, zeitbasiert).
+## Schleppe: Ein träger Bodenpunkt folgt dem Kopf, die Ringe liegen gleichmäßig auf der
+## Linie vom Bodenpunkt zum Kopf (wie im Original). Responsivität des Bodenpunkts
+## (1/Sekunde, zeitbasiert).
 ## Je kleiner, desto länger die Schleppe: 1.0 = lang (Standard), 3.0 = kurz.
 ## Sinnvoller Bereich 0.5 – 6.0.
 @export var lazy_follow_rate: float = 1.0
 
-## Anzahl der Ringe zwischen Boden und Kopf
+## Anzahl der Ringe zwischen Boden und Kopf (Mindestanzahl, bei normaler Körpergröße)
 @export var num_rings: int = 8
+
+## Wird die Säule höher (z. B. beim Sprung), kommen Ringe dazu, damit der Abstand nicht
+## größer wird als dieser Wert (Meter). Höchstens max_rings Ringe.
+@export var max_ring_spacing: float = 0.18
+@export var max_rings: int = 48
 
 ## Durchmesser des untersten Rings (Meter)
 @export var base_diameter: float = 1.2
@@ -75,17 +73,9 @@ enum TrailMode { LINEAR, DAMPED }
 ## Abstand zwischen oberstem Ring und Kopfkugel (Meter)
 @export var top_ring_gap: float = 0.05
 
-## Nur Modus DAMPED: Responsivität des untersten Rings (1/Sekunde).
-## 3.0 → ~0.23 s bis halbe Lücke geschlossen; sinnvoller Bereich 1.0 – 8.0.
-@export var damping_bottom: float = 3.0
-
-## Responsivität des obersten Rings (1/Sekunde), im Modus LINEAR für den Kopf.
+## Responsivität des Kopfes (1/Sekunde).
 ## 14.0 → ~0.05 s; sinnvoller Bereich 8.0 – 20.0.
 @export var damping_top: float = 14.0
-
-## Nur Modus DAMPED: Krümmung der Dämpfungs-Verteilung (1.0 = linear).
-## > 1.0 macht untere Ringe träger, < 1.0 macht sie responsiver.
-@export var damping_curve: float = 1.0
 
 ## Versatz des gesamten Avatars nach hinten (Rücken-Richtung), Meter.
 ## Folgt der Kopf-Yaw-Richtung. 0.0 = kein Versatz (zentriert auf Spieler).
@@ -103,10 +93,10 @@ var peer_id: int = 0:
 
 
 # ── Interne Zustandsvariablen ────────────────────────────────────
-var _rings:          Array = []   # MeshInstance3D pro Ring
-var _ring_pos_cur:   Array = []   # DAMPED: aktuelle (gedämpfte) Weltposition
-var _ring_pos_tgt:   Array = []   # DAMPED: Zielposition (vom Netzwerk)
-var _lazy_cur:       Vector3 = Vector3.ZERO   # LINEAR: träger Bodenpunkt
+var _rings:          Array = []   # MeshInstance3D, max_rings Stück, nur _active_rings sichtbar
+var _base_color:     Color = Color.WHITE
+var _active_rings:   int = 0       # aktuell sichtbare Ringe (num_rings bis max_rings)
+var _lazy_cur:       Vector3 = Vector3.ZERO   # träger Bodenpunkt
 var _lazy_tgt:       Vector3 = Vector3.ZERO
 var _head_mesh:      MeshInstance3D = null   # Kopfkugel, folgt Position und Rotation des Kopfes
 var _hmd_mesh:       MeshInstance3D = null   # Brillen-Würfel, Kind der Kugel (Vorderseite = -Z)
@@ -136,17 +126,17 @@ func _ready() -> void:
 # ── Aufbau ───────────────────────────────────────────────────────
 
 func _build_rings() -> void:
-	var tube_radius: float = tube_diameter / 2.0
-	for i in range(num_rings):
-		var t            = float(i) / float(max(num_rings - 1, 1))
-		var ring_radius  = lerp(base_diameter, top_diameter, t) / 2.0
-
+	# Ring-Pool: Meshes mit Radius 1, der Radius kommt über die Skalierung. So kann sich die
+	# Ringanzahl zur Laufzeit ändern (hohe Säule beim Sprung), ohne Meshes neu zu bauen.
+	var tube_rel: float = tube_diameter / maxf(base_diameter, 0.01)
+	_active_rings = num_rings
+	for i in range(maxi(max_rings, num_rings)):
 		var inst := MeshInstance3D.new()
 		if flat_rings:
 			# Offenes Band: Zylinder ohne Deckel
 			var band := CylinderMesh.new()
-			band.top_radius      = ring_radius
-			band.bottom_radius   = ring_radius
+			band.top_radius      = 1.0
+			band.bottom_radius   = 1.0
 			band.height          = band_height
 			band.radial_segments = 48
 			band.rings           = 1
@@ -155,16 +145,14 @@ func _build_rings() -> void:
 			inst.mesh = band
 		else:
 			var torus := TorusMesh.new()
-			torus.inner_radius   = max(0.001, ring_radius - tube_radius)
-			torus.outer_radius   = ring_radius + tube_radius
+			torus.inner_radius   = maxf(0.001, 1.0 - tube_rel)
+			torus.outer_radius   = 1.0 + tube_rel
 			torus.rings          = 24
 			torus.ring_segments  = tube_segments
 			inst.mesh = torus
+		inst.visible = i < _active_rings
 		add_child(inst)
-
 		_rings.append(inst)
-		_ring_pos_cur.append(Vector3.ZERO)
-		_ring_pos_tgt.append(Vector3.ZERO)
 
 	# Kopfkugel mit Brillen-Würfel davor (-Z, wie die Blickrichtung der Kamera)
 	_head_mesh = MeshInstance3D.new()
@@ -215,12 +203,7 @@ func update_transform(body_pos: Vector3, head_pos: Vector3, head_rot: Vector3) -
 	var back_offset := back_dir * body_back_offset
 
 	var base        = body_pos + Vector3(0.0, base_y_offset, 0.0) + back_offset
-	# Ringe enden top_ring_gap unterhalb der Kopfkugel.
-	var ring_top    = head_pos - Vector3(0.0, top_ring_gap, 0.0) + back_offset
 	_lazy_tgt = base
-	for i in range(_rings.size()):
-		var t = float(i) / float(max(_rings.size() - 1, 1))
-		_ring_pos_tgt[i] = base.lerp(ring_top, t)
 
 	_head_tgt = head_pos + back_offset
 	_head_basis_tgt = Basis.from_euler(head_rot)
@@ -229,8 +212,6 @@ func update_transform(body_pos: Vector3, head_pos: Vector3, head_rot: Vector3) -
 	if _first_update:
 		_first_update = false
 		_lazy_cur = _lazy_tgt
-		for i in range(_rings.size()):
-			_ring_pos_cur[i] = _ring_pos_tgt[i]
 		_head_cur = head_pos + back_offset
 		_head_basis_cur = _head_basis_tgt
 
@@ -272,29 +253,35 @@ func _process(delta: float) -> void:
 	if is_instance_valid(_head_collider):
 		_head_collider.global_position = _head_cur
 
-	if trail_mode == TrailMode.LINEAR:
-		# Ein träger Bodenpunkt folgt dem Kopf. Die Ringe liegen gleichmäßig auf der
-		# Linie vom Bodenpunkt (unten) zum Kopf (oben).
-		_lazy_cur = _lazy_cur.lerp(_lazy_tgt, 1.0 - exp(-lazy_follow_rate * delta))
-		var ring_top := _head_cur - Vector3(0.0, top_ring_gap, 0.0)
-		for i in range(_rings.size()):
-			var t = float(i) / float(max(_rings.size() - 1, 1))
-			_rings[i].global_position = _lazy_cur.lerp(ring_top, t)
-	else:
-		# Dämpfung: linearer Gradient (mit Kurve) von bottom zu top.
-		for i in range(_rings.size()):
-			var t              = float(i) / float(max(_rings.size() - 1, 1))
-			var responsiveness = lerp(damping_bottom, damping_top, pow(t, damping_curve))
-			var smooth         = 1.0 - exp(-responsiveness * delta)
-
-			_ring_pos_cur[i] = _ring_pos_cur[i].lerp(_ring_pos_tgt[i], smooth)
-			_rings[i].global_position = _ring_pos_cur[i]
+	# Ein träger Bodenpunkt folgt dem Kopf. Die Ringe liegen gleichmäßig auf der Linie vom
+	# Bodenpunkt (unten, bleibt am Boden) zum Kopf (oben). Ist die Säule hoch (Sprung),
+	# kommen Ringe dazu, damit keine großen Lücken entstehen.
+	_lazy_cur = _lazy_cur.lerp(_lazy_tgt, 1.0 - exp(-lazy_follow_rate * delta))
+	var ring_top := _head_cur - Vector3(0.0, top_ring_gap, 0.0)
+	_update_ring_count(maxf(ring_top.y - _lazy_cur.y, 0.0))
+	var n := _active_rings
+	for i in range(n):
+		var t := float(i) / float(maxi(n - 1, 1))
+		var r: float = lerpf(base_diameter, top_diameter, t) / 2.0
+		_rings[i].global_position = _lazy_cur.lerp(ring_top, t)
+		_rings[i].scale = Vector3(r, 1.0 if flat_rings else r, r)
 
 	# Controller folgen mit derselben Glättung wie der Kopf
 	for i in _hands.size():
 		if _hands[i].visible:
 			_hands[i].global_position = _hands[i].global_position.lerp(_hand_pos_tgt[i], head_smooth)
 			_hands[i].global_basis = _hands[i].global_basis.slerp(_hand_basis_tgt[i], head_smooth)
+
+
+## Passt die Zahl der sichtbaren Ringe an die Höhe der Säule an.
+func _update_ring_count(column_height: float) -> void:
+	var wanted := clampi(ceili(column_height / maxf(max_ring_spacing, 0.01)) + 1, num_rings, _rings.size())
+	if wanted == _active_rings:
+		return
+	_active_rings = wanted
+	for i in _rings.size():
+		_rings[i].visible = i < _active_rings
+	_apply_ring_colors()
 
 
 # ── Selbst-Ansicht (eigener Körper in First-Person) ─────────────
@@ -335,15 +322,8 @@ func _apply_color() -> void:
 
 	var color: Color = _force_color if _force_color.a > 0.01 else GameState.get_color_for_id(peer_id)
 
-	# Ringe: eigenes Material je Ring wegen des Farbverlaufs (unten dunkler)
-	for i in range(_rings.size()):
-		if not is_instance_valid(_rings[i]):
-			continue
-		var t := float(i) / float(max(_rings.size() - 1, 1))
-		var ring_color := color
-		if color_gradient:
-			ring_color = color.darkened(gradient_darken * (1.0 - t))
-		_rings[i].set_surface_override_material(0, _make_material(ring_color, flat_rings, 0.7, 0.0))
+	_base_color = color
+	_apply_ring_colors()
 
 	for hand: MeshInstance3D in _hands:
 		hand.set_surface_override_material(0, _make_material(color, false, 0.5, 0.0))
@@ -351,6 +331,17 @@ func _apply_color() -> void:
 	if is_instance_valid(_head_mesh):
 		_head_mesh.set_surface_override_material(0, _make_material(color.lightened(0.3), false, 0.3, 0.4))
 		_hmd_mesh.set_surface_override_material(0, _make_material(color.darkened(0.45), false, 0.4, 0.0))
+
+
+## Ringe: eigenes Material je Ring wegen des Farbverlaufs (unten dunkler). Der Verlauf
+## hängt von der aktuellen Ringanzahl ab.
+func _apply_ring_colors() -> void:
+	for i in range(_rings.size()):
+		var t := minf(float(i) / float(maxi(_active_rings - 1, 1)), 1.0)
+		var ring_color := _base_color
+		if color_gradient:
+			ring_color = _base_color.darkened(gradient_darken * (1.0 - t))
+		_rings[i].set_surface_override_material(0, _make_material(ring_color, flat_rings, 0.7, 0.0))
 
 
 ## Material für alle Teile. unshaded = flache Darstellung ohne Beleuchtung (beidseitig sichtbar).
