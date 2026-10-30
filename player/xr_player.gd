@@ -38,6 +38,7 @@ const SEND_RATE: float = 0.05
 @export var jump_debug: bool = true
 
 var _send_timer: float = 0.0
+var _hand_color: Color = Color(0, 0, 0, 0)
 var _jump_clock: float = 0.0
 var _jump_hist: Array = []   # Vector2(Zeit, Höhe) der letzten 1 s
 var _jump_rising: bool = false
@@ -83,6 +84,34 @@ func _on_right_stick(_action: String, value: Vector2) -> void:
 
 func _process(delta: float) -> void:
 	_detect_jump(delta)  # pro gerendertem Bild: so oft wie die Kopfpose neu kommt
+	_update_hand_visuals()
+
+
+## Ein Controller gilt nur als aktiv, wenn er Tracking-Daten liefert und nicht auf dem
+## Ursprung liegt (ausgeschaltete Controller melden sonst die Raummitte).
+func _hand_tracked(ctrl: XRController3D) -> bool:
+	return ctrl != null and ctrl.get_is_active() and ctrl.get_has_tracking_data() \
+			and ctrl.position.length() > 0.02
+
+
+## Zeigt die eigenen Controller nur, wenn sie aktiv sind, in der eigenen Spielerfarbe.
+func _update_hand_visuals() -> void:
+	var color := Color.WHITE
+	if GameState.my_id != 0 and GameState.player_colors.has(GameState.my_id):
+		color = GameState.player_colors[GameState.my_id]
+	if color != _hand_color:
+		_hand_color = color
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = color
+		mat.roughness = 0.5
+		for hand_name: String in ["LeftHand", "RightHand"]:
+			var mesh := get_node_or_null(hand_name + "/ControllerMesh") as MeshInstance3D
+			if mesh != null:
+				mesh.set_surface_override_material(0, mat)
+	for hand_name: String in ["LeftHand", "RightHand"]:
+		var ctrl := get_node_or_null(hand_name) as XRController3D
+		if ctrl != null:
+			ctrl.visible = _hand_tracked(ctrl)
 
 
 func _physics_process(delta: float) -> void:
@@ -189,7 +218,7 @@ func _broadcast_position() -> void:
 	var mask := 0
 	for i in 2:
 		var ctrl := get_node_or_null("LeftHand" if i == 0 else "RightHand") as XRController3D
-		var tracked: bool = ctrl != null and ctrl.get_is_active() and ctrl.get_has_tracking_data()
+		var tracked: bool = _hand_tracked(ctrl)
 		if tracked:
 			mask |= 1 << i
 			hands.append(ctrl.global_position)

@@ -467,7 +467,7 @@ func _apply_color() -> void:
 		_rings[i].set_surface_override_material(0, _make_material(ring_color, flat_rings, 0.7, 0.0))
 
 	for hand: MeshInstance3D in _hands:
-		hand.set_surface_override_material(0, _make_material(color.lightened(0.3), false, 0.5, 0.0))
+		hand.set_surface_override_material(0, _make_material(color, false, 0.5, 0.0))
 
 	if is_instance_valid(_head_mesh):
 		_head_mesh.set_surface_override_material(0, _make_material(color.lightened(0.3), false, 0.3, 0.4))
