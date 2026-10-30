@@ -5,6 +5,7 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/1.1.0/). Der Branch
 ## [Unreleased]
 
 ### Hinzugefügt
+- Freeze: Leertaste oder Button am Server hält die Simulation für alle Brillen an (`SimulationRelay.set_frozen()`, RPC, Anzeige „EINGEFROREN“).
 - Situs Core 1.1.0 als Plugin (`godot/addons/situs_core/`, git subtree von `dist`). Hauptszene ist `main.tscn` des Plugins, die Simulation ist die Standardszene (`situs_core/default_scene`).
 - Datenkanal `godot/modul_data_channel/`: ENet-Transferkanal 1, Ack-Flusskontrolle je Client, neuester Frame gewinnt, Late-Join-Cache, optional zstd.
 - `godot/simulation_relay.gd`: Rollen Server, Client und Direct. Einstellungen `sim/udp_port` (4242) und `sim/udp_on_clients`.

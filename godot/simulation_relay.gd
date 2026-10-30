@@ -9,10 +9,17 @@ extends Node
 ##          Gilt bei F6 auf der Szene und bei Project Setting sim/udp_on_clients
 ##          (eine einzelne Brille, MATLAB sendet direkt an sie).
 ##
+## Freeze: Der Server (oder die Direkt-Instanz) kann die Simulation anhalten. Neue
+## Frames werden dann weder verteilt noch angezeigt, alle Brillen behalten das letzte
+## Bild. Der Zustand geht per RPC an alle Clients, Neuankömmlinge bekommen ihn beim
+## Beitritt. Beim Fortsetzen läuft der Strom einfach weiter.
+##
 ## Alle Rollen lösen dasselbe Signal aus, das scene_view.gd erwartet.
 ## Das Debug-Overlay liest die Statistik-Felder wie beim UDP-Empfänger.
 
 signal frame_received(magic: String, info: Dictionary, payload: PackedByteArray)
+## Freeze wurde ein- oder ausgeschaltet (lokal oder vom Server).
+signal frozen_changed(frozen: bool)
 
 const UdpReceiver := preload("res://udp_receiver.gd")
 const CHANNEL_PREFIX := "sim/"
@@ -23,6 +30,8 @@ enum Role { NONE, SERVER, CLIENT, DIRECT }
 
 var role: Role = Role.NONE
 var role_name: String = "-"
+## true = Simulation angehalten (siehe Kopfkommentar)
+var frozen: bool = false
 
 # Statistik wie udp_receiver.gd (vom Debug-Overlay gelesen)
 var port: int = 4242
@@ -59,6 +68,8 @@ func attach() -> void:
 	if GameState.mode == GameState.Mode.SERVER and not solo:
 		role = Role.SERVER
 		_start_udp()
+		# Jeder neue (oder wiederverbundene) Client erfährt den aktuellen Freeze-Zustand.
+		multiplayer.peer_connected.connect(func(id: int) -> void: _rpc_frozen.rpc_id(id, frozen))
 	elif direct:
 		role = Role.DIRECT
 		_start_udp()
@@ -76,6 +87,33 @@ func replay() -> void:
 		frame_received.emit(magic, entry.info, entry.payload)
 
 
+## Hält die Simulation an oder setzt sie fort. Nur Server und Direkt-Instanz
+## dürfen das, Clients ignorieren den Aufruf.
+func set_frozen(value: bool) -> void:
+	if role != Role.SERVER and role != Role.DIRECT:
+		return
+	if value == frozen:
+		return
+	_apply_frozen(value)
+	if role == Role.SERVER:
+		_rpc_frozen.rpc(value)
+
+
+func toggle_frozen() -> void:
+	set_frozen(not frozen)
+
+
+@rpc("authority", "reliable", "call_remote")
+func _rpc_frozen(value: bool) -> void:
+	_apply_frozen(value)
+
+
+func _apply_frozen(value: bool) -> void:
+	frozen = value
+	print("[SimulationRelay] Freeze: ", "EIN" if frozen else "AUS")
+	frozen_changed.emit(frozen)
+
+
 func _start_udp() -> void:
 	_receiver = UdpReceiver.new()
 	port = int(ProjectSettings.get_setting("sim/udp_port", 4242))
@@ -85,6 +123,8 @@ func _start_udp() -> void:
 
 
 func _on_udp_frame(magic: String, info: Dictionary, payload: PackedByteArray) -> void:
+	if frozen:
+		return  # angehalten: nichts verteilen, nichts anzeigen
 	if role == Role.SERVER:
 		# Neue MATLAB-Session: alte Frames nicht mehr an spätere Clients ausliefern.
 		if _receiver.session_id != _last_session:
@@ -97,6 +137,10 @@ func _on_udp_frame(magic: String, info: Dictionary, payload: PackedByteArray) ->
 
 func _on_channel_received(channel: String, meta: Dictionary, payload: PackedByteArray, _t: int) -> void:
 	if not channel.begins_with(CHANNEL_PREFIX):
+		return
+	# Während Freeze bleibt das Bild stehen. Ausnahme: ein Client, der dieses Format
+	# noch nie gesehen hat (Late Join), bekommt den einen Stand-Frame.
+	if frozen and _last.has(channel.substr(CHANNEL_PREFIX.length())):
 		return
 	_rate_frames += 1
 	_rate_bytes += payload.size()
@@ -141,6 +185,8 @@ func _process(delta: float) -> void:
 ## Zusätzliche Zeilen für das Debug-Overlay.
 func extra_lines() -> Array[String]:
 	var lines: Array[String] = ["Rolle:         %s" % role_name]
+	if frozen:
+		lines.append("Freeze:        EIN")
 	if role == Role.SERVER:
 		var s: Dictionary = DataChannel.stats
 		lines.append("Relay:         gesendet %d, ersetzt %d, %.1f MB (roh %.1f MB)" % [

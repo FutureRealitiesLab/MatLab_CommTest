@@ -15,7 +15,49 @@ func _enter_tree() -> void:
 	view.room_rotation_deg = 0.0
 
 
+var _freeze_label: Label3D
+var _freeze_button: Button
+
+
 func _ready() -> void:
 	super()
 	SimulationRelay.attach()
 	SimulationRelay.replay()
+	_build_freeze_ui()
+	SimulationRelay.frozen_changed.connect(_on_frozen_changed)
+	_on_frozen_changed(SimulationRelay.frozen)
+
+
+## Leertaste (Server und Direkt-Instanz) hält die Simulation für alle an.
+func _unhandled_key_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_SPACE:
+		SimulationRelay.toggle_frozen()
+
+
+## Schwebendes Schild über dem Raum (für Brillen und Server) und ein Button für den Server.
+func _build_freeze_ui() -> void:
+	_freeze_label = Label3D.new()
+	_freeze_label.text = "EINGEFROREN"
+	_freeze_label.font_size = 96
+	_freeze_label.pixel_size = 0.004
+	_freeze_label.modulate = Color(1.0, 0.6, 0.1)
+	_freeze_label.outline_modulate = Color(0, 0, 0)
+	_freeze_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_freeze_label.position = Vector3(0.0, 2.4, 0.0)
+	_freeze_label.visible = false
+	add_child(_freeze_label)
+
+	if SimulationRelay.role == SimulationRelay.Role.SERVER or SimulationRelay.role == SimulationRelay.Role.DIRECT:
+		_freeze_button = Button.new()
+		_freeze_button.toggle_mode = true
+		_freeze_button.text = "Freeze (Leertaste)"
+		_freeze_button.focus_mode = Control.FOCUS_NONE
+		_freeze_button.position = Vector2(12.0, 280.0)
+		_freeze_button.toggled.connect(func(on: bool) -> void: SimulationRelay.set_frozen(on))
+		$DebugLayer.add_child(_freeze_button)
+
+
+func _on_frozen_changed(frozen: bool) -> void:
+	_freeze_label.visible = frozen
+	if _freeze_button != null:
+		_freeze_button.set_pressed_no_signal(frozen)
