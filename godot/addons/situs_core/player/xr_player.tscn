@@ -2,9 +2,8 @@
 
 [ext_resource type="Script" uid="uid://m2n4xtj7xxqu" path="res://addons/situs_core/player/xr_player.gd" id="1_xrplaygd"]
 
-[sub_resource type="SphereMesh" id="SphereMesh_ctrl"]
-radius = 0.04
-height = 0.08
+[sub_resource type="BoxMesh" id="BoxMesh_ctrl"]
+size = Vector3(0.04, 0.04, 0.15)
 
 [node name="XRPlayer" type="XROrigin3D" unique_id=102811565]
 script = ExtResource("1_xrplaygd")
@@ -15,10 +14,10 @@ script = ExtResource("1_xrplaygd")
 tracker = &"left_hand"
 
 [node name="ControllerMesh" type="MeshInstance3D" parent="LeftHand" unique_id=111100001]
-mesh = SubResource("SphereMesh_ctrl")
+mesh = SubResource("BoxMesh_ctrl")
 
 [node name="RightHand" type="XRController3D" parent="." unique_id=1677672070]
 tracker = &"right_hand"
 
 [node name="ControllerMesh" type="MeshInstance3D" parent="RightHand" unique_id=111100002]
-mesh = SubResource("SphereMesh_ctrl")
+mesh = SubResource("BoxMesh_ctrl")
