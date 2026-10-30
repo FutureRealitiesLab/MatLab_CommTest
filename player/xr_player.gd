@@ -38,6 +38,8 @@ const SEND_RATE: float = 0.05
 @export var jump_debug: bool = true
 
 var _send_timer: float = 0.0
+var _hint: Label3D = null
+var _hint_time: float = 0.0
 var _hand_color: Color = Color(0, 0, 0, 0)
 var _jump_clock: float = 0.0
 var _jump_hist: Array = []   # Vector2(Zeit, Höhe) der letzten 1 s
@@ -60,6 +62,8 @@ func _ready() -> void:
 
 
 func _on_button(button_name: String) -> void:
+	if jump_debug:
+		_show_hint("Taste: " + button_name)  # zeigt, welche Taste ankommt (Name der Action Map)
 	# Standalone nur aktivieren, wenn KEINE Server-Verbindung besteht
 	if not NetworkManager.client_connected_flag and not SceneManager.standalone_mode:
 		SceneManager.activate_standalone()
@@ -68,6 +72,7 @@ func _on_button(button_name: String) -> void:
 			and _jump_cool <= 0.0 and NetworkManager.client_connected_flag:
 		_jump_cool = jump_cooldown
 		_jump_log("Taste " + button_name, 0.0, 0.0)
+		_jump_feedback()
 		NetworkManager.send_jump()
 	# Secondary Button (B/Y) → nächste Szene (nur im Standalone-Modus; im Multiplayer steuert der Server)
 	if button_name == "by_button" and SceneManager.standalone_mode:
@@ -84,6 +89,10 @@ func _on_right_stick(_action: String, value: Vector2) -> void:
 
 func _process(delta: float) -> void:
 	_detect_jump(delta)  # pro gerendertem Bild: so oft wie die Kopfpose neu kommt
+	if _hint != null and _hint.visible:
+		_hint_time -= delta
+		if _hint_time <= 0.0:
+			_hint.visible = false
 	_update_hand_visuals()
 
 
@@ -159,6 +168,7 @@ func _detect_jump(delta: float) -> void:
 		_jump_rising = false
 		_jump_cool = jump_cooldown
 		_jump_log("SPRUNG", h, vy)
+		_jump_feedback()
 		NetworkManager.send_jump()
 	elif _jump_rise_t > 0.7:
 		_jump_rising = false  # nur aufgerichtet, kein Sprung
@@ -167,7 +177,35 @@ func _detect_jump(delta: float) -> void:
 
 func _jump_log(what: String, h: float, vy: float) -> void:
 	if jump_debug:
-		print("[Sprung] %s: Höhe %.2f, v %.2f m/s" % [what, h, vy])
+		var line := "[Sprung] %s: Höhe %.2f, v %.2f m/s" % [what, h, vy]
+		print(line)
+		_show_hint(line)
+
+
+## Rückmeldung an den Springenden selbst: Der eigene Avatar ist in VR ausgeblendet, den
+## Effekt sehen nur die anderen. Deshalb kurzes Vibrieren beider Controller.
+func _jump_feedback() -> void:
+	for hand_name: String in ["LeftHand", "RightHand"]:
+		var ctrl := get_node_or_null(hand_name) as XRController3D
+		if ctrl != null:
+			ctrl.trigger_haptic_pulse("haptic", 0.0, 1.0, 0.3, 0.0)
+
+
+## Kurzer Hinweistext im Blickfeld (nur mit jump_debug), damit man die Erkennung ohne Log sieht.
+func _show_hint(text: String) -> void:
+	if _hint == null:
+		_hint = Label3D.new()
+		_hint.font_size = 28
+		_hint.pixel_size = 0.0008
+		_hint.no_depth_test = true
+		_hint.render_priority = 10
+		_hint.modulate = Color(1.0, 0.8, 0.2)
+		_hint.outline_modulate = Color(0, 0, 0)
+		_hint.position = Vector3(0.0, -0.14, -0.6)
+		$XRCamera3D.add_child(_hint)
+	_hint.text = text
+	_hint.visible = true
+	_hint_time = 2.5
 
 
 func _do_locomotion(delta: float) -> void:
