@@ -24,9 +24,9 @@ const SEND_RATE: float = 0.05
 ## Drehgeschwindigkeit (Grad/s)
 @export var rotation_speed: float = 60.0
 
-## Boost-Sprung: Auslöser sind die B-Taste (nur rechter Controller) oder Hocke und
-## Hochspringen. Danach steigt der Spieler schnell auf die Sprunghöhe und gleitet langsam
-## zurück. Höhe und Zeiten: Project Settings → Situs Core → Jump. Während des Flugs sind
+## Boost-Sprung: Auslöser sind die Sprungtaste (Standard B, nur rechter Controller) oder Hocke
+## und Hochspringen. Danach steigt der Spieler wie bei einem Wurf auf die Sprunghöhe, die
+## Energie läuft nach oben hin aus, und er sinkt langsam zurück. Höhe und Zeiten: Project Settings → Situs Core → Jump. Während des Flugs sind
 ## weitere Sprünge gesperrt.
 ## Hocke: so viel muss der Kopf unter die normale Höhe gehen (Meter)
 @export var jump_crouch_drop: float = 0.4
@@ -40,6 +40,8 @@ var _hand_mat: StandardMaterial3D = null     # Spielerfarbe
 var _flash_mat: StandardMaterial3D = null    # weißes Aufblitzen bei Tastendruck
 var _flash_t: Array = [0.0, 0.0]             # verbleibende Blitzzeit links, rechts
 var _flash_on: Array = [false, false]
+var _hint: Label3D = null
+var _hint_time: float = 0.0
 var _boost_phase: int = 0          # 0 = am Boden, 1 = Aufstieg, 2 = Gleiten
 var _boost_time: float = 0.0
 var _boost_applied: float = 0.0    # aktuell auf den Ursprung addierte Höhe (Meter)
@@ -79,8 +81,28 @@ func _on_button(button_name: String) -> void:
 
 ## B-Taste (nur rechter Controller) löst den Sprung aus.
 func _on_right_button(button_name: String) -> void:
-	if button_name == "by_button":
+	if SitusSettings.get_show_button_names():
+		_show_hint("Taste: " + button_name)
+	if button_name == SitusSettings.get_jump_button():
 		start_boost()
+
+
+## Kurzer Hinweistext im Blickfeld (zeigt den Namen der gedrückten Taste), um die
+## Sprungtaste in den Project Settings (Situs Core → Jump → Button) einzustellen.
+func _show_hint(text: String) -> void:
+	if _hint == null:
+		_hint = Label3D.new()
+		_hint.font_size = 28
+		_hint.pixel_size = 0.0008
+		_hint.no_depth_test = true
+		_hint.render_priority = 10
+		_hint.modulate = Color(1.0, 0.8, 0.2)
+		_hint.outline_modulate = Color(0, 0, 0)
+		_hint.position = Vector3(0.0, -0.14, -0.6)
+		$XRCamera3D.add_child(_hint)
+	_hint.text = text
+	_hint.visible = true
+	_hint_time = 2.0
 
 
 ## Startet den Boost-Sprung. Ignoriert, wenn abgeschaltet oder der Spieler noch fliegt.
@@ -105,14 +127,17 @@ func _update_boost(delta: float) -> void:
 	if _boost_phase == 1:
 		_boost_time += delta
 		var x := clampf(_boost_time / maxf(SitusSettings.get_jump_rise(), 0.05), 0.0, 1.0)
-		offset = height * (1.0 - pow(1.0 - x, 3.0))   # schnell am Anfang, sanft oben
+		# Wie ein Wurf: am Anfang schnell, nach oben läuft die Sprungenergie aus (Geschwindigkeit
+		# nimmt gleichmäßig bis 0 am höchsten Punkt ab)
+		offset = height * (1.0 - (1.0 - x) * (1.0 - x))
 		if x >= 1.0:
 			_boost_phase = 2
 			_boost_time = 0.0
 	elif _boost_phase == 2:
 		_boost_time += delta
 		var x := clampf(_boost_time / maxf(SitusSettings.get_jump_glide(), 0.5), 0.0, 1.0)
-		offset = height * (1.0 + cos(PI * x)) / 2.0   # langsam los, langsam ankommen
+		# Beginnt ohne Ruck aus dem höchsten Punkt, sinkt langsam und kommt sanft an
+		offset = height * (1.0 + cos(PI * x)) / 2.0
 		if x >= 1.0:
 			_boost_phase = 0
 			offset = 0.0
@@ -131,6 +156,10 @@ func _on_right_stick(_action: String, value: Vector2) -> void:
 
 func _process(delta: float) -> void:
 	_update_boost(delta)
+	if _hint != null and _hint.visible:
+		_hint_time -= delta
+		if _hint_time <= 0.0:
+			_hint.visible = false
 	_update_hand_visuals(delta)
 
 
