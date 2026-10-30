@@ -2,7 +2,7 @@
 
 > **Status (2026-10-30): Meilenstein erreicht.** MATLAB-Daten laufen über den Server im Netzwerk zu den Brillen, und die Brillen sehen einander. Offen sind Messungen mit mehreren Brillen und Feinschliff (TODO-Liste unten).
 >
-> Umsetzung im Branch `feature/situs-core`. Die Architekturempfehlung unten ist umgesetzt. Offene Arbeit steht in der [TODO-Liste](#todo-liste) am Ende.
+> Umsetzung seit 2026-10-30 auf `main` (Branch `feature/situs-core` gemergt und gelöscht). Die Architekturempfehlung unten ist umgesetzt. Offene Arbeit steht in der [TODO-Liste](#todo-liste) am Ende.
 
 ## Kontext
 
@@ -129,7 +129,7 @@ Reihenfolge = empfohlene Abarbeitung. Kästchen abhaken, wenn erledigt.
 ### 5. Aufräumen und Veröffentlichen
 
 - [ ] Entscheiden, ob die geänderte `godot/export_presets.cfg` committet wird.
-- [ ] Branch `feature/situs-core` nach `main` mergen, sobald Test 1 und 2 bestanden sind.
+- [x] Branch `feature/situs-core` nach `main` gemergt (2026-10-30, Fast-Forward) und gelöscht.
 - [ ] Tags `v1.0.0` und `v1.1.0` im Situs-Repo setzen und `dist` neu bauen (nach den Tests).
 - [ ] `matlab/udp/PROTOCOL.md` und README auf den Stand der Tests bringen.
 
@@ -149,4 +149,17 @@ Die Module entstehen im Repo Situs-Core (`docs/plan.md` dort) und werden hier al
 
 ### 8. Branches
 
-- [ ] `feature/situs-core` ist 8 Commits vor `main` und hat nichts verloren. Ein Merge nach `main` wäre ein Fast-Forward. `main` enthält Stephans Stand, Absprache mit ihm vor dem Merge.
+- [x] `main` ist auf dem Stand von Situs Core. Stephans Altstand (`godot-stephan/`) ist entfernt und nur noch in der Git-Historie.
+
+### 9. Zwei Varianten: VR-Multiplayer und PC-Singleplayer
+
+Entscheidung (2026-10-30): **ein Projekt, ein `main`, zwei Einstiege.** Keine getrennten Branches oder Kopien, damit Bugfixes nicht doppelt nötig sind.
+
+- Gemeinsamer Kern: `simulation_scene.tscn`, `simulation_relay.gd`, `scene_view.gd` und Shader.
+- VR-Multiplayer: Hauptszene `main.tscn` von Situs (Server, Brillen, Datenkanal). Aktueller Stand.
+- PC-Singleplayer: neue schlanke Szene `desktop_main.tscn`. Sie startet die Simulationsszene im Modus DIRECT (UDP von MATLAB, Orbit-Kamera, kein Menü, kein Netzwerk).
+
+- [ ] `desktop_main.tscn` anlegen (Start der `simulation_scene` im Modus DIRECT).
+- [ ] Windows-Export-Preset „PC_Solo“ mit eigener Hauptszene über Feature-Override (`application/run/main_scene.pc_solo`). Android bleibt unverändert.
+- [ ] Windows-Export-Vorlagen installieren (siehe `docs/INSTALL.md`) und README um den PC-Start ergänzen.
+- [ ] Erst bei starker Abweichung (anderer Renderer, kein OpenXR) in ein getrenntes Projekt `godot_pc/` auslagern. Der Kern müsste dann geteilt werden.

@@ -1,8 +1,8 @@
 # Changelog
 
-Format nach [Keep a Changelog](https://keepachangelog.com/de/1.1.0/). Änderungen am Branch `feature/situs-core`.
+Format nach [Keep a Changelog](https://keepachangelog.com/de/1.1.0/). Der Branch `feature/situs-core` ist am 2026-10-30 nach `main` gemergt und gelöscht.
 
-## [Unreleased] (Branch `feature/situs-core`)
+## [Unreleased]
 
 ### Hinzugefügt
 - Situs Core 1.1.0 als Plugin (`godot/addons/situs_core/`, git subtree von `dist`). Hauptszene ist `main.tscn` des Plugins, die Simulation ist die Standardszene (`situs_core/default_scene`).
