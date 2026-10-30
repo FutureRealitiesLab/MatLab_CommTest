@@ -62,10 +62,12 @@ func _ready() -> void:
 	if has_node("LeftHand"):
 		$LeftHand.button_pressed.connect(_on_button)
 		$LeftHand.button_pressed.connect(_flash_hand.bind(0))
+		$LeftHand.button_pressed.connect(_show_button_info.bind(0))
 		$LeftHand.input_vector2_changed.connect(_on_left_stick)
 	if has_node("RightHand"):
 		$RightHand.button_pressed.connect(_on_button)
 		$RightHand.button_pressed.connect(_flash_hand.bind(1))
+		$RightHand.button_pressed.connect(_show_button_info.bind(1))
 		$RightHand.button_pressed.connect(_on_right_button)
 		$RightHand.input_vector2_changed.connect(_on_right_stick)
 
@@ -81,10 +83,23 @@ func _on_button(button_name: String) -> void:
 
 ## B-Taste (nur rechter Controller) löst den Sprung aus.
 func _on_right_button(button_name: String) -> void:
-	if SitusSettings.get_show_button_names():
-		_show_hint("Taste: " + button_name)
 	if button_name == SitusSettings.get_jump_button():
 		start_boost()
+
+
+## Zeigt Hand, Aktionsname der Taste und das aktive Controller-Profil (OpenXR) im Blickfeld.
+## Damit sieht man, ob die Brille das Focus-3-Profil nutzt (dann kommen A/B/X/Y als
+## ax_button/by_button) oder auf ein einfaches Profil zurückfällt (nur select/menu).
+func _show_button_info(button_name: String, hand_index: int) -> void:
+	if not SitusSettings.get_show_button_names():
+		return
+	var ctrl := get_node_or_null("LeftHand" if hand_index == 0 else "RightHand") as XRController3D
+	var profile := "?"
+	if ctrl != null:
+		var tracker := XRServer.get_tracker(ctrl.tracker) as XRPositionalTracker
+		if tracker != null and tracker.profile != "":
+			profile = tracker.profile.get_file()   # z. B. vive_focus3_controller
+	_show_hint("%s: %s\nProfil: %s" % ["links" if hand_index == 0 else "rechts", button_name, profile])
 
 
 ## Kurzer Hinweistext im Blickfeld (zeigt den Namen der gedrückten Taste), um die
