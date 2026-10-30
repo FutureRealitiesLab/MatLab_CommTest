@@ -16,15 +16,19 @@ const JUMP_ENABLED   := "situs_core/jump/enabled"
 const JUMP_HEIGHT    := "situs_core/jump/height_m"
 const JUMP_RISE      := "situs_core/jump/rise_s"
 const JUMP_GLIDE     := "situs_core/jump/glide_s"
+const JUMP_BUTTON    := "situs_core/jump/button"
+const JUMP_SHOW_BUTTONS := "situs_core/jump/show_button_names"
 
 const DEFAULT_SERVER_IP     := "127.0.0.1"
 const DEFAULT_ROOM_WIDTH    := 4.0
 const DEFAULT_ROOM_LENGTH   := 8.0
 const DEFAULT_ROOM_ROTATION := 0.0
 const DEFAULT_JUMP_ENABLED  := true
-const DEFAULT_JUMP_HEIGHT   := 5.0
-const DEFAULT_JUMP_RISE     := 0.4
-const DEFAULT_JUMP_GLIDE    := 5.0
+const DEFAULT_JUMP_HEIGHT   := 4.0
+const DEFAULT_JUMP_RISE     := 1.2
+const DEFAULT_JUMP_GLIDE    := 6.8
+const DEFAULT_JUMP_BUTTON   := "by_button"
+const DEFAULT_JUMP_SHOW_BUTTONS := true
 
 ## Wird vom Plugin beim Aktivieren registriert, damit die Felder im Editor erscheinen.
 const DEFINITIONS := [
@@ -44,6 +48,10 @@ const DEFINITIONS := [
 		"hint": PROPERTY_HINT_RANGE, "hint_string": "0.05,3,0.05,or_greater,suffix:s"},
 	{"name": JUMP_GLIDE, "type": TYPE_FLOAT, "default": DEFAULT_JUMP_GLIDE,
 		"hint": PROPERTY_HINT_RANGE, "hint_string": "0.5,30,0.5,or_greater,suffix:s"},
+	{"name": JUMP_BUTTON, "type": TYPE_STRING, "default": DEFAULT_JUMP_BUTTON,
+		"hint": PROPERTY_HINT_ENUM, "hint_string": "by_button,ax_button,trigger_click,grip_click,primary_click,select_button,none"},
+	{"name": JUMP_SHOW_BUTTONS, "type": TYPE_BOOL, "default": DEFAULT_JUMP_SHOW_BUTTONS,
+		"hint": PROPERTY_HINT_NONE, "hint_string": ""},
 ]
 
 
@@ -83,6 +91,17 @@ static func get_jump_rise() -> float:
 ## Dauer des langsamen Herabgleitens in Sekunden.
 static func get_jump_glide() -> float:
 	return float(ProjectSettings.get_setting(JUMP_GLIDE, DEFAULT_JUMP_GLIDE))
+
+
+## Controller-Taste (rechter Controller), die den Sprung auslöst: Name der Aktion aus der
+## Action Map. Standard by_button = B. none = nur die Körperbewegung.
+static func get_jump_button() -> String:
+	return str(ProjectSettings.get_setting(JUMP_BUTTON, DEFAULT_JUMP_BUTTON))
+
+
+## Zeigt beim Drücken einer Controller-Taste deren Namen im Blickfeld (zum Einstellen der Sprungtaste).
+static func get_show_button_names() -> bool:
+	return bool(ProjectSettings.get_setting(JUMP_SHOW_BUTTONS, DEFAULT_JUMP_SHOW_BUTTONS))
 
 
 ## Legt die Einstellungen mit Typ, Default und Wertebereich im Editor an.
