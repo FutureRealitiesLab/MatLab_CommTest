@@ -12,11 +12,19 @@ const SERVER_IP      := "situs_core/network/server_ip"
 const ROOM_WIDTH     := "situs_core/room/width_m"
 const ROOM_LENGTH    := "situs_core/room/length_m"
 const ROOM_ROTATION  := "situs_core/room/rotation_deg"
+const JUMP_ENABLED   := "situs_core/jump/enabled"
+const JUMP_HEIGHT    := "situs_core/jump/height_m"
+const JUMP_RISE      := "situs_core/jump/rise_s"
+const JUMP_GLIDE     := "situs_core/jump/glide_s"
 
 const DEFAULT_SERVER_IP     := "127.0.0.1"
 const DEFAULT_ROOM_WIDTH    := 4.0
 const DEFAULT_ROOM_LENGTH   := 8.0
 const DEFAULT_ROOM_ROTATION := 0.0
+const DEFAULT_JUMP_ENABLED  := true
+const DEFAULT_JUMP_HEIGHT   := 5.0
+const DEFAULT_JUMP_RISE     := 0.4
+const DEFAULT_JUMP_GLIDE    := 5.0
 
 ## Wird vom Plugin beim Aktivieren registriert, damit die Felder im Editor erscheinen.
 const DEFINITIONS := [
@@ -28,6 +36,14 @@ const DEFINITIONS := [
 		"hint": PROPERTY_HINT_RANGE, "hint_string": "0.5,100,0.1,or_greater,suffix:m"},
 	{"name": ROOM_ROTATION, "type": TYPE_FLOAT, "default": DEFAULT_ROOM_ROTATION,
 		"hint": PROPERTY_HINT_RANGE, "hint_string": "-180,180,0.5,suffix:°"},
+	{"name": JUMP_ENABLED, "type": TYPE_BOOL, "default": DEFAULT_JUMP_ENABLED,
+		"hint": PROPERTY_HINT_NONE, "hint_string": ""},
+	{"name": JUMP_HEIGHT, "type": TYPE_FLOAT, "default": DEFAULT_JUMP_HEIGHT,
+		"hint": PROPERTY_HINT_RANGE, "hint_string": "0.5,30,0.5,or_greater,suffix:m"},
+	{"name": JUMP_RISE, "type": TYPE_FLOAT, "default": DEFAULT_JUMP_RISE,
+		"hint": PROPERTY_HINT_RANGE, "hint_string": "0.05,3,0.05,or_greater,suffix:s"},
+	{"name": JUMP_GLIDE, "type": TYPE_FLOAT, "default": DEFAULT_JUMP_GLIDE,
+		"hint": PROPERTY_HINT_RANGE, "hint_string": "0.5,30,0.5,or_greater,suffix:s"},
 ]
 
 
@@ -47,6 +63,26 @@ static func get_room_size() -> Vector2:
 ## Wird auf den XR-Ursprung angewendet. Szenen bleiben unverändert.
 static func get_room_rotation_deg() -> float:
 	return float(ProjectSettings.get_setting(ROOM_ROTATION, DEFAULT_ROOM_ROTATION))
+
+
+## Boost-Sprung (B-Taste oder Hocke und Hochspringen). Aus = keine Auslösung.
+static func get_jump_enabled() -> bool:
+	return bool(ProjectSettings.get_setting(JUMP_ENABLED, DEFAULT_JUMP_ENABLED))
+
+
+## Sprunghöhe in Metern (eigene Sicht).
+static func get_jump_height() -> float:
+	return float(ProjectSettings.get_setting(JUMP_HEIGHT, DEFAULT_JUMP_HEIGHT))
+
+
+## Dauer des schnellen Aufstiegs in Sekunden.
+static func get_jump_rise() -> float:
+	return float(ProjectSettings.get_setting(JUMP_RISE, DEFAULT_JUMP_RISE))
+
+
+## Dauer des langsamen Herabgleitens in Sekunden.
+static func get_jump_glide() -> float:
+	return float(ProjectSettings.get_setting(JUMP_GLIDE, DEFAULT_JUMP_GLIDE))
 
 
 ## Legt die Einstellungen mit Typ, Default und Wertebereich im Editor an.

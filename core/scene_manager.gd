@@ -308,7 +308,9 @@ func _update_self_avatar() -> void:
 		head_pos = local_player.global_position + Vector3(0.0, 1.6, 0.0)
 	# Basis = Kopf-XZ auf Boden-Y projiziert: Avatar folgt physischer Bewegung,
 	# nicht dem fixen XROrigin-Spawn-Punkt. Für FPS kein Unterschied (Head-XZ == Body-XZ).
-	var base_pos := Vector3(head_pos.x, local_player.global_position.y, head_pos.z)
+	# Beim Sprung bleibt der Körper am echten Boden (XR-Spieler: get_floor_y()).
+	var floor_y: float = local_player.get_floor_y() if local_player.has_method("get_floor_y") else local_player.global_position.y
+	var base_pos := Vector3(head_pos.x, floor_y, head_pos.z)
 	var head_rot := head_node.global_rotation if head_node != null else Vector3.ZERO
 	self_avatar.update_transform(base_pos, head_pos, head_rot)
 
