@@ -179,36 +179,6 @@ func _client_receive_state(
 		_apply_state(SceneManager.remote_avatars[sender_id], body_pos, head_pos, head_rot, hands, hands_mask)
 
 
-## Meldet den eigenen Sprung (Hocke, dann Hochspringen) an den Server; der Server
-## leitet ihn an alle anderen weiter.
-func send_jump() -> void:
-	if not client_connected_flag:
-		return
-	_server_receive_jump.rpc_id(1, multiplayer.get_unique_id())
-
-
-@rpc("any_peer", "reliable", "call_remote")
-func _server_receive_jump(sender_id: int) -> void:
-	if not multiplayer.is_server():
-		return
-	_trigger_avatar_jump(sender_id)
-	for peer_id: int in multiplayer.get_peers():
-		if peer_id != sender_id:
-			_client_receive_jump.rpc_id(peer_id, sender_id)
-
-
-@rpc("authority", "reliable", "call_remote")
-func _client_receive_jump(sender_id: int) -> void:
-	_trigger_avatar_jump(sender_id)
-
-
-func _trigger_avatar_jump(sender_id: int) -> void:
-	if SceneManager.remote_avatars.has(sender_id):
-		var avatar: Node = SceneManager.remote_avatars[sender_id]
-		if avatar.has_method("trigger_jump"):
-			avatar.trigger_jump()
-
-
 # ── Spieler-Join/Leave-Benachrichtigungen ────────────────────────
 
 ## Server → alle bestehenden Clients: neuer Spieler beigetreten

@@ -10,8 +10,6 @@ extends XROrigin3D
 ##   Thumbstick X       → Links/Rechts-Rotation (beide Controller, max-Betrag gewinnt)
 
 
-const SitusSettings := preload("res://addons/situs_core/core/situs_settings.gd")
-
 ## Sendeintervall in Sekunden (20 Hz)
 const SEND_RATE: float = 0.05
 
@@ -24,29 +22,8 @@ const SEND_RATE: float = 0.05
 ## Drehgeschwindigkeit (Grad/s)
 @export var rotation_speed: float = 60.0
 
-## Sprung-Erkennung über die Kopfhöhe: Der Kopf steigt schnell und fällt gleich wieder.
-## (Aufrichten aus der Hocke oder Verbeugen steigt nur und löst nichts aus.)
-## Wird an die anderen gemeldet (Avatar fliegt, Geist bleibt).
-## Ein/Aus und die zusätzliche Controller-Taste: Project Settings → Situs Core → Avatar.
-## Mindest-Steiggeschwindigkeit des Kopfes in m/s (gemittelt über ca. 0.2 s)
-@export var jump_speed: float = 1.0
-## Mindest-Anstieg des Kopfes in Metern
-@export var jump_min_rise: float = 0.1
-## Pause nach einem Sprung in Sekunden
-@export var jump_cooldown: float = 2.0
-## Meldet Anstieg, Sprung und Taste im Log (adb logcat -s godot), zum Einstellen der Schwellen
-@export var jump_debug: bool = true
-
 var _send_timer: float = 0.0
-var _hint: Label3D = null
-var _hint_time: float = 0.0
 var _hand_color: Color = Color(0, 0, 0, 0)
-var _jump_clock: float = 0.0
-var _jump_hist: Array = []   # Vector2(Zeit, Höhe) der letzten 1 s
-var _jump_rising: bool = false
-var _jump_rise_t: float = 0.0
-var _jump_peak: float = 0.0
-var _jump_cool: float = 0.0
 var _stick_l: Vector2 = Vector2.ZERO
 var _stick_r: Vector2 = Vector2.ZERO
 
@@ -62,18 +39,9 @@ func _ready() -> void:
 
 
 func _on_button(button_name: String) -> void:
-	if jump_debug:
-		_show_hint("Taste: " + button_name)  # zeigt, welche Taste ankommt (Name der Action Map)
 	# Standalone nur aktivieren, wenn KEINE Server-Verbindung besteht
 	if not NetworkManager.client_connected_flag and not SceneManager.standalone_mode:
 		SceneManager.activate_standalone()
-	# Zusätzlicher Sprung-Auslöser: Controller-Taste (Standard B/Y), einstellbar in den Project Settings
-	if SitusSettings.get_jump_enabled() and button_name == SitusSettings.get_jump_button() \
-			and _jump_cool <= 0.0 and NetworkManager.client_connected_flag:
-		_jump_cool = jump_cooldown
-		_jump_log("Taste " + button_name, 0.0, 0.0)
-		_jump_feedback()
-		NetworkManager.send_jump()
 	# Secondary Button (B/Y) → nächste Szene (nur im Standalone-Modus; im Multiplayer steuert der Server)
 	if button_name == "by_button" and SceneManager.standalone_mode:
 		SceneManager.advance_scene()
@@ -88,11 +56,6 @@ func _on_right_stick(_action: String, value: Vector2) -> void:
 
 
 func _process(delta: float) -> void:
-	_detect_jump(delta)  # pro gerendertem Bild: so oft wie die Kopfpose neu kommt
-	if _hint != null and _hint.visible:
-		_hint_time -= delta
-		if _hint_time <= 0.0:
-			_hint.visible = false
 	_update_hand_visuals()
 
 
@@ -129,83 +92,6 @@ func _physics_process(delta: float) -> void:
 		_send_timer = 0.0
 		_broadcast_position()
 	_do_locomotion(delta)
-
-
-## Sprung am Kopf erkennen: schneller Anstieg, dann innerhalb von 0.7 s wieder Abstieg.
-## Ausgewertet wird nur die Höhenänderung der Kopfpose (egal, ob der Tracking-Raum am
-## Boden oder am Kopf beginnt), pro gerendertem Bild.
-func _detect_jump(delta: float) -> void:
-	if delta <= 0.0 or not SitusSettings.get_jump_enabled():
-		return
-	var cam := $XRCamera3D as XRCamera3D
-	if cam.position.length() < 0.01:
-		return  # noch kein Tracking
-	_jump_clock += delta
-	_jump_cool = maxf(0.0, _jump_cool - delta)
-	var h: float = cam.position.y
-	_jump_hist.append(Vector2(_jump_clock, h))
-	while _jump_hist.size() > 1 and _jump_clock - _jump_hist[0].x > 1.0:
-		_jump_hist.pop_front()
-	var vy := 0.0
-	var rise := 0.0
-	for e: Vector2 in _jump_hist:
-		if _jump_clock - e.x <= 0.22:
-			vy = (h - e.y) / maxf(_jump_clock - e.x, 0.05)
-			rise = h - e.y
-			break
-
-	if not _jump_rising:
-		if vy > jump_speed and rise > jump_min_rise and _jump_cool <= 0.0:
-			_jump_rising = true
-			_jump_rise_t = 0.0
-			_jump_peak = h
-			_jump_log("Anstieg", h, vy)
-		return
-
-	_jump_rise_t += delta
-	_jump_peak = maxf(_jump_peak, h)
-	if vy < -0.4 and _jump_peak - h > 0.04:
-		_jump_rising = false
-		_jump_cool = jump_cooldown
-		_jump_log("SPRUNG", h, vy)
-		_jump_feedback()
-		NetworkManager.send_jump()
-	elif _jump_rise_t > 0.7:
-		_jump_rising = false  # nur aufgerichtet, kein Sprung
-		_jump_log("kein Abstieg, verworfen", h, vy)
-
-
-func _jump_log(what: String, h: float, vy: float) -> void:
-	if jump_debug:
-		var line := "[Sprung] %s: Höhe %.2f, v %.2f m/s" % [what, h, vy]
-		print(line)
-		_show_hint(line)
-
-
-## Rückmeldung an den Springenden selbst: Der eigene Avatar ist in VR ausgeblendet, den
-## Effekt sehen nur die anderen. Deshalb kurzes Vibrieren beider Controller.
-func _jump_feedback() -> void:
-	for hand_name: String in ["LeftHand", "RightHand"]:
-		var ctrl := get_node_or_null(hand_name) as XRController3D
-		if ctrl != null:
-			ctrl.trigger_haptic_pulse("haptic", 0.0, 1.0, 0.3, 0.0)
-
-
-## Kurzer Hinweistext im Blickfeld (nur mit jump_debug), damit man die Erkennung ohne Log sieht.
-func _show_hint(text: String) -> void:
-	if _hint == null:
-		_hint = Label3D.new()
-		_hint.font_size = 28
-		_hint.pixel_size = 0.0008
-		_hint.no_depth_test = true
-		_hint.render_priority = 10
-		_hint.modulate = Color(1.0, 0.8, 0.2)
-		_hint.outline_modulate = Color(0, 0, 0)
-		_hint.position = Vector3(0.0, -0.14, -0.6)
-		$XRCamera3D.add_child(_hint)
-	_hint.text = text
-	_hint.visible = true
-	_hint_time = 2.5
 
 
 func _do_locomotion(delta: float) -> void:

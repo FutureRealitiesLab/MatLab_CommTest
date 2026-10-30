@@ -5,15 +5,13 @@ extends CharacterBody3D
 ##
 ## Stellt einen Spieler als gestapelte Ringe dar, die hinter der Kopfbewegung
 ## nachziehen. Oben sitzt ein Kopf (Kugel) mit Brille (Würfel), Controller sind
-## kleine Quader. Optional gibt es einen Sprung-Effekt (Hocke, dann Hochspringen).
+## kleine Quader.
 ## Anzahl, Größe, Nachzieh-Verhalten und Darstellung sind im Inspektor einstellbar.
 ## Für eine eigene Variante: avatar_dynamic_cone.tscn duplizieren
 ## und die Inspektor-Werte überschreiben (kein Code nötig).
 ##
-## Die Schleppe und der Sprung orientieren sich am Avatar aus dem Projekt
-## Spatial Encounters (siehe docs/THIRD_PARTY.md).
-
-const SitusSettings := preload("res://addons/situs_core/core/situs_settings.gd")
+## Die Schleppe orientiert sich am Avatar aus dem Projekt Spatial Encounters
+## (siehe docs/THIRD_PARTY.md).
 
 ## Wie die Ringe nachziehen:
 ## LINEAR = ein träger Bodenpunkt folgt dem Kopf, die Ringe liegen gleichmäßig auf
@@ -94,31 +92,6 @@ enum TrailMode { LINEAR, DAMPED }
 ## Wird für Remote-Avatare auf 0.0 gelassen; set_self_mode() aktiviert 0.1 für den eigenen Avatar.
 @export var body_back_offset: float = 0.0
 
-@export_group("Sprung")
-
-## Sprung-Effekt erlaubt (zusätzlich zur Project Setting Situs Core → Avatar → Jump Enabled).
-## Während des Sprungs fliegt der Avatar nach oben und wächst, an der echten Position
-## des Spielers bleibt ein durchsichtiger Geist stehen.
-@export var jump_enabled: bool = true
-
-## Höhe, auf die der Avatar fliegt (Meter)
-@export var jump_lift: float = 2.5
-
-## Zusätzliche Vergrößerung der Ringe auf dem Höhepunkt (1.0 = doppelt so groß)
-@export var jump_scale_gain: float = 1.0
-
-## Dauer des Aufstiegs und des Absinkens (Sekunden)
-@export var jump_up_time: float = 2.0
-@export var jump_down_time: float = 6.0
-
-## Deckkraft des Geistes an der echten Position (0 = unsichtbar, 1 = voll)
-@export_range(0.0, 1.0, 0.05) var ghost_alpha: float = 0.25
-
-## Wird nur für den Geist gesetzt (siehe _spawn_ghost): durchsichtiger Zwilling an der
-## echten Position, ohne Kollision und ohne eigenen Sprung.
-var ghost_mode: bool = false
-
-
 # ── Interface: wird von SceneManager gesetzt ─────────────────────
 var peer_id: int = 0:
 	set(value):
@@ -150,22 +123,9 @@ var _self_mode:      bool = false
 var _ready_done:     bool = false
 var _first_update:   bool = true  # beim ersten Netzwerk-Update sofort einrasten
 
-# Letzter Netzwerkzustand (für den Geist beim Sprungbeginn)
-var _last_body: Vector3 = Vector3.ZERO
-var _last_head: Vector3 = Vector3.ZERO
-var _last_rot:  Vector3 = Vector3.ZERO
-
-# Sprung: 0 = kein Sprung, 1 = Aufstieg, 2 = Absinken
-var _jump_phase: int = 0
-var _jump_time: float = 0.0
-var _jump_amount: float = 0.0   # 0..1
-var _ghost: Node = null
-
-
 func _ready() -> void:
-	if not ghost_mode:
-		add_to_group("remote_avatars")
-	collision_layer = 0 if ghost_mode else 4   # Layer 3: "avatars"
+	add_to_group("remote_avatars")
+	collision_layer = 4   # Layer 3: "avatars"
 	collision_mask  = 0   # kein Physik-Kontakt
 
 	_build_rings()
@@ -232,9 +192,6 @@ func _build_rings() -> void:
 		add_child(hand)
 		_hands.append(hand)
 
-	if ghost_mode:
-		return  # der Geist braucht keinen Collider
-
 	# Kopf-Collider: StaticBody3D auf Layer 4, Gruppe "avatar_heads"
 	# Folgt _head_cur in _process() → Area3D-Trigger können gezielt auf den Kopf reagieren.
 	# Zugriff auf Spieler-ID: body.get_meta("peer_id") oder body.get_parent().peer_id
@@ -253,10 +210,6 @@ func _build_rings() -> void:
 # ── Netzwerk-Update (vom NetworkManager aufgerufen, ~20 Hz) ──────
 
 func update_transform(body_pos: Vector3, head_pos: Vector3, head_rot: Vector3) -> void:
-	_last_body = body_pos
-	_last_head = head_pos
-	_last_rot = head_rot
-
 	# Horizontal-Rückwärtsvektor aus Kopf-Yaw (kein Pitch/Roll)
 	var back_dir    := Vector3(sin(head_rot.y), 0.0, cos(head_rot.y))
 	var back_offset := back_dir * body_back_offset
@@ -281,15 +234,10 @@ func update_transform(body_pos: Vector3, head_pos: Vector3, head_rot: Vector3) -
 		_head_cur = head_pos + back_offset
 		_head_basis_cur = _head_basis_tgt
 
-	if is_instance_valid(_ghost):
-		_ghost.call("update_transform", body_pos, head_pos, head_rot)
-
 
 ## Controller-Posen (vom NetworkManager, ~20 Hz). hands = [links_pos, links_rot,
 ## rechts_pos, rechts_rot] in Weltkoordinaten, mask: Bit 0 links, Bit 1 rechts getrackt.
 func update_hands(hands: PackedVector3Array, mask: int) -> void:
-	if is_instance_valid(_ghost):
-		_ghost.call("update_hands", hands, mask)
 	if _self_mode or _hands.size() < 2 or hands.size() < 4:
 		return
 	for i in 2:
@@ -314,15 +262,10 @@ func _process(delta: float) -> void:
 	if _rings.is_empty() or _first_update:
 		return
 
-	_update_jump(delta)
-	# Beim Sprung wird der ganze Avatar nach oben verschoben (alle Ziele), die Ringe wachsen.
-	var lift := Vector3(0.0, _jump_amount * jump_lift, 0.0)
-	var ring_scale := Vector3.ONE * (1.0 + jump_scale_gain * _jump_amount)
-
 	# Kopf ist etwas responsiver als der oberste Ring (Faktor 1.5),
 	# um den "Lead" zu behalten, aber fließend zum Rest.
 	var head_smooth: float = 1.0 - exp(-damping_top * 1.5 * delta)
-	_head_cur = _head_cur.lerp(_head_tgt + lift, head_smooth)
+	_head_cur = _head_cur.lerp(_head_tgt, head_smooth)
 	_head_basis_cur = _head_basis_cur.slerp(_head_basis_tgt, head_smooth)
 	_head_mesh.global_position = _head_cur
 	_head_mesh.global_basis = _head_basis_cur
@@ -332,12 +275,11 @@ func _process(delta: float) -> void:
 	if trail_mode == TrailMode.LINEAR:
 		# Ein träger Bodenpunkt folgt dem Kopf. Die Ringe liegen gleichmäßig auf der
 		# Linie vom Bodenpunkt (unten) zum Kopf (oben).
-		_lazy_cur = _lazy_cur.lerp(_lazy_tgt + lift, 1.0 - exp(-lazy_follow_rate * delta))
+		_lazy_cur = _lazy_cur.lerp(_lazy_tgt, 1.0 - exp(-lazy_follow_rate * delta))
 		var ring_top := _head_cur - Vector3(0.0, top_ring_gap, 0.0)
 		for i in range(_rings.size()):
 			var t = float(i) / float(max(_rings.size() - 1, 1))
 			_rings[i].global_position = _lazy_cur.lerp(ring_top, t)
-			_rings[i].scale = ring_scale
 	else:
 		# Dämpfung: linearer Gradient (mit Kurve) von bottom zu top.
 		for i in range(_rings.size()):
@@ -345,77 +287,14 @@ func _process(delta: float) -> void:
 			var responsiveness = lerp(damping_bottom, damping_top, pow(t, damping_curve))
 			var smooth         = 1.0 - exp(-responsiveness * delta)
 
-			_ring_pos_cur[i] = _ring_pos_cur[i].lerp(_ring_pos_tgt[i] + lift, smooth)
+			_ring_pos_cur[i] = _ring_pos_cur[i].lerp(_ring_pos_tgt[i], smooth)
 			_rings[i].global_position = _ring_pos_cur[i]
-			_rings[i].scale = ring_scale
 
 	# Controller folgen mit derselben Glättung wie der Kopf
 	for i in _hands.size():
 		if _hands[i].visible:
-			_hands[i].global_position = _hands[i].global_position.lerp(_hand_pos_tgt[i] + lift, head_smooth)
+			_hands[i].global_position = _hands[i].global_position.lerp(_hand_pos_tgt[i], head_smooth)
 			_hands[i].global_basis = _hands[i].global_basis.slerp(_hand_basis_tgt[i], head_smooth)
-
-
-# ── Sprung ───────────────────────────────────────────────────────
-
-## Startet den Sprung-Effekt (vom NetworkManager gerufen, wenn der Spieler gesprungen ist).
-## Der Avatar fliegt nach oben und wächst, ein durchsichtiger Geist bleibt an der echten
-## Position. Ignoriert, wenn der Effekt abgeschaltet ist oder gerade läuft.
-func trigger_jump() -> void:
-	if ghost_mode or _self_mode or not jump_enabled or not SitusSettings.get_jump_enabled():
-		return
-	if _jump_phase != 0 or _first_update:
-		return
-	_jump_phase = 1
-	_jump_time = 0.0
-	_spawn_ghost()
-
-
-func _update_jump(delta: float) -> void:
-	if _jump_phase == 0:
-		return
-	_jump_time += delta
-	if _jump_phase == 1:
-		var x := clampf(_jump_time / maxf(jump_up_time, 0.01), 0.0, 1.0)
-		_jump_amount = _ease_in_out_cubic(x)
-		if x >= 1.0:
-			_jump_phase = 2
-			_jump_time = 0.0
-	else:
-		var x := clampf(_jump_time / maxf(jump_down_time, 0.01), 0.0, 1.0)
-		_jump_amount = 1.0 - _ease_in_out_cubic(x)
-		if x >= 1.0:
-			_jump_phase = 0
-			_jump_amount = 0.0
-			_free_ghost()
-
-
-static func _ease_in_out_cubic(x: float) -> float:
-	return 4.0 * x * x * x if x < 0.5 else 1.0 - pow(-2.0 * x + 2.0, 3.0) / 2.0
-
-
-## Durchsichtiger Zwilling an der echten Position des Spielers.
-func _spawn_ghost() -> void:
-	if scene_file_path.is_empty():
-		return
-	var packed := load(scene_file_path) as PackedScene
-	if packed == null:
-		return
-	var g: Node = packed.instantiate()
-	g.set("ghost_mode", true)
-	g.set("jump_enabled", false)
-	add_child(g)
-	g.set("peer_id", peer_id)
-	if _force_color.a > 0.01:
-		g.call("set_force_color", _force_color)
-	g.call("update_transform", _last_body, _last_head, _last_rot)
-	_ghost = g
-
-
-func _free_ghost() -> void:
-	if is_instance_valid(_ghost):
-		_ghost.queue_free()
-	_ghost = null
 
 
 # ── Selbst-Ansicht (eigener Körper in First-Person) ─────────────
@@ -475,7 +354,6 @@ func _apply_color() -> void:
 
 
 ## Material für alle Teile. unshaded = flache Darstellung ohne Beleuchtung (beidseitig sichtbar).
-## Beim Geist wird alles durchsichtig.
 func _make_material(color: Color, unshaded: bool, roughness: float, metallic: float) -> StandardMaterial3D:
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = color
@@ -484,7 +362,4 @@ func _make_material(color: Color, unshaded: bool, roughness: float, metallic: fl
 	if unshaded:
 		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		mat.cull_mode    = BaseMaterial3D.CULL_DISABLED
-	if ghost_mode:
-		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		mat.albedo_color.a = ghost_alpha
 	return mat
