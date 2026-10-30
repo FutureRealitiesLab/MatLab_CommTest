@@ -1,6 +1,8 @@
 # Plan: Architektur MATLAB → Server-PC → Brillen (WLAN)
 
-> **Status (2026-10-28): Umsetzung im Branch `feature/situs-core` abgeschlossen, Multiplayer-Test an echten Brillen steht aus.** Die Architekturempfehlung unten ist umgesetzt. Offene Arbeit steht in der [TODO-Liste](#todo-liste) am Ende.
+> **Status (2026-10-30): Meilenstein erreicht.** MATLAB-Daten laufen über den Server im Netzwerk zu den Brillen, und die Brillen sehen einander. Offen sind Messungen mit mehreren Brillen und Feinschliff (TODO-Liste unten).
+>
+> Umsetzung im Branch `feature/situs-core`. Die Architekturempfehlung unten ist umgesetzt. Offene Arbeit steht in der [TODO-Liste](#todo-liste) am Ende.
 
 ## Kontext
 
@@ -84,7 +86,9 @@ Im Code vorhanden und per Headless-Test geprüft (Server + Late-Join-Client mit 
 - Server-Ansicht mit Maus: links drehen, rechts verschieben, Rad zoomen.
 - Installation und Export: `docs/INSTALL.md`, `tools/setup_android.ps1`.
 
-**Nicht geprüft:** echte Brillen, WLAN, echter MATLAB-Sender, Rotationsvorzeichen, Leistung des Raymarchings bei mehreren Brillen.
+Auf echter Hardware bestätigt (2026-10-30): APK läuft auf der Brille, Verbindung zum Server über die LAN-IP (`situs_core/network/server_ip`), MATLAB-Daten kommen im Netzwerk an, die andere Brille ist sichtbar.
+
+**Noch nicht geprüft:** Rotationsvorzeichen, Android-Override der IP, Betrieb mit 4 und 8 Brillen, Messwerte (Daten-Hz, RTT, GPU-Zeit).
 
 ## TODO-Liste
 
@@ -92,17 +96,17 @@ Reihenfolge = empfohlene Abarbeitung. Kästchen abhaken, wenn erledigt.
 
 ### 1. PC-Test mit echtem MATLAB
 
-- [ ] Server in Godot starten (F5, *Als Server starten*), in MATLAB `udpTest`: Volumen erscheint, Overlay (F3) zeigt Frames.
-- [ ] Zweite Instanz als Client (`127.0.0.1`): sieht dieselben Daten, Late Join nach laufendem Stream.
+- [x] Server in Godot starten (F5, *Als Server starten*), in MATLAB `udpTest`: Volumen erscheint, Overlay (F3) zeigt Frames.
+- [x] Zweite Instanz als Client (`127.0.0.1`): sieht dieselben Daten, Late Join nach laufendem Stream.
 - [ ] MATLAB neu starten (neue Session-ID): Server und Client setzen sich zurück, kein Hängen.
 - [ ] Mausnavigation auf der Serveransicht prüfen (Drehen, Verschieben, Zoomen).
 
 ### 2. Eine Brille
 
-- [ ] Setup-Skript auf dem Export-Rechner laufen lassen (`tools/setup_android.ps1`), APK mit Preset `Vive_LBE` exportieren und installieren.
-- [ ] Server-IP gesetzt, Firewall UDP 7777 (und 4242 bei MATLAB auf anderem Rechner) offen.
-- [ ] Brille verbindet sich, Avatar erscheint auf dem Server.
-- [ ] Volumen kommt über WLAN an. Kennzahlen notieren: Daten-Hz, verworfene Frames, RTT.
+- [x] Setup-Skript auf dem Export-Rechner laufen lassen (`tools/setup_android.ps1`), APK mit Preset `Vive_LBE` exportieren und installieren.
+- [x] Server-IP gesetzt, Firewall UDP 7777 (und 4242 bei MATLAB auf anderem Rechner) offen.
+- [x] Brille verbindet sich, Avatar erscheint auf dem Server.
+- [x] Volumen kommt über WLAN an. Kennzahlen notieren: Daten-Hz, verworfene Frames, RTT.
 - [ ] **Rotation prüfen:** `room/rotation_deg = -90` entspricht der alten Content-Drehung `90`. Stimmt die Ausrichtung nicht, Vorzeichen umkehren.
 - [ ] Optional: Android-Override für die Server-IP (*Override For… → android*) testen.
 - [ ] GPU-Zeit des Raymarchings im Compatibility-Renderer messen.
