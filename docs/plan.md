@@ -137,3 +137,16 @@ Reihenfolge = empfohlene Abarbeitung. Kästchen abhaken, wenn erledigt.
 
 - [ ] `modul_data_channel` als Modul ins Situs-Repo übernehmen.
 - [ ] `sim/*`-Einstellungen im Editor sichtbar machen.
+
+### 7. Neue Module für Situs, hier einzubinden
+
+Die Module entstehen im Repo Situs-Core (`docs/plan.md` dort) und werden hier als Funktion für die Simulationsdaten eingebunden.
+
+- [ ] Avatar-Paket aus Situs übernehmen: Blickrichtungs-Würfel, Controller als Quader, bessere Schleppe.
+- [ ] **Simulationskörper greifen, skalieren, rotieren und repositionieren.** Transformation muss für alle Brillen synchron sein und darf den Datenstrom von MATLAB nicht stören.
+- [ ] **Kollaboratives Sketching** im selben Raum, Striche an alle Brillen.
+- [ ] Danach: `git subtree pull` auf den neuen Situs-Stand.
+
+### 8. Branches
+
+- [ ] `feature/situs-core` ist 8 Commits vor `main` und hat nichts verloren. Ein Merge nach `main` wäre ein Fast-Forward. `main` enthält Stephans Stand, Absprache mit ihm vor dem Merge.

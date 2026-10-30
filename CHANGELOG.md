@@ -1,0 +1,28 @@
+# Changelog
+
+Format nach [Keep a Changelog](https://keepachangelog.com/de/1.1.0/). Änderungen am Branch `feature/situs-core`.
+
+## [Unreleased] (Branch `feature/situs-core`)
+
+### Hinzugefügt
+- Situs Core 1.1.0 als Plugin (`godot/addons/situs_core/`, git subtree von `dist`). Hauptszene ist `main.tscn` des Plugins, die Simulation ist die Standardszene (`situs_core/default_scene`).
+- Datenkanal `godot/modul_data_channel/`: ENet-Transferkanal 1, Ack-Flusskontrolle je Client, neuester Frame gewinnt, Late-Join-Cache, optional zstd.
+- `godot/simulation_relay.gd`: Rollen Server, Client und Direct. Einstellungen `sim/udp_port` (4242) und `sim/udp_on_clients`.
+- Serveransicht mit Maus: links drehen, rechts verschieben, Rad zoomen.
+- `docs/INSTALL.md` und `tools/setup_android.ps1` (Einrichtung und Export), Firewall-Hinweise für UDP 7777 und 4242.
+- `docs/plan.md` mit Umsetzungsstand und TODO-Liste, `docs/ai-chat-log.md`, dieser Changelog.
+
+### Geändert
+- Raum 4 × 8 m, Rotation `-90` (entspricht der alten Content-Drehung 90, Vorzeichen auf der Brille noch zu prüfen) über die Situs-Project-Settings.
+- Server-IP steht in `project.godot` (`situs_core/network/server_ip`), nicht in einer Datei.
+- Presets: `Vive_LBE` als Run-Ziel, `export_presets.cfg` im Godot-4.7-Format neu geschrieben.
+- README und Projektstand aktualisiert.
+
+### Entfernt
+- `godot-stephan/` (Altlast).
+
+### Meilenstein 2026-10-30
+- Auf Hardware bestätigt: APK läuft auf der Brille, Verbindung zum Server über die LAN-IP, MATLAB-Daten kommen im Netzwerk an, die zweite Brille ist sichtbar.
+
+## Vorher
+- Alter Betrachter (`main.tscn`, `udp_receiver.gd`, `scene_view.gd`, Shader) mit SteamVR und Standalone auf der Vive Focus Vision. Er bleibt im Repo.
