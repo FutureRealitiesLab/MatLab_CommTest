@@ -1,4 +1,6 @@
-# Plan: Architektur MATLAB → Server-PC → Brillen (WLAN)
+# Plan: Spatial Insights (ehemals MatLab_CommTest): Architektur MATLAB → Server-PC → Brillen (WLAN)
+
+> **Umbenennung (2026-10-30):** Das Repo heißt jetzt `Spatial_Insights` (Forschungsvorhaben Spatial Insights, HTW Berlin). Aus dem Kommunikationstest ist das Produkt geworden.
 
 > **Status (2026-10-30): Meilenstein erreicht.** MATLAB-Daten laufen über den Server im Netzwerk zu den Brillen, und die Brillen sehen einander. Offen sind Messungen mit mehreren Brillen und Feinschliff (TODO-Liste unten).
 >
@@ -163,3 +165,16 @@ Entscheidung (2026-10-30): **ein Projekt, ein `main`, zwei Einstiege.** Keine ge
 - [ ] Windows-Export-Preset „PC_Solo“ mit eigener Hauptszene über Feature-Override (`application/run/main_scene.pc_solo`). Android bleibt unverändert.
 - [ ] Windows-Export-Vorlagen installieren (siehe `docs/INSTALL.md`) und README um den PC-Start ergänzen.
 - [ ] Erst bei starker Abweichung (anderer Renderer, kein OpenXR) in ein getrenntes Projekt `godot_pc/` auslagern. Der Kern müsste dann geteilt werden.
+
+### 10. Umbenennung in Spatial Insights
+
+- [x] GitHub-Repo umbenannt (`Spatial_Insights`), `origin` angepasst.
+- [x] Godot-Projektname, App-Name, APK-Namen, `package/unique_name` (`org.spatialinsights.viewer`, `.lbe`), README, INSTALL, Setup-Skript.
+- [ ] **Auf allen Brillen die alte App deinstallieren** (`org.matlabcommtest.viewer*`), weil Android die neue `unique_name` als andere App behandelt.
+- [ ] Notion-Seite *Spatial Insights* (Repo-Links, Namen) anpassen.
+- [ ] Lokale Klone: `git remote set-url origin https://github.com/FutureRealitiesLab/Spatial_Insights.git`.
+
+### 11. Neue Funktionen
+
+- [ ] **Buffer-File (Offline-Playmode):** MATLAB-Frames in eine Datei aufzeichnen und ohne MATLAB abspielen. Muss auch im PC-Solo-Modus laufen. Idee: PC-Solo ist ein lokaler Server (Rolle Server ohne Clients), das Abspielen speist wie ein UDP-Empfang in `simulation_relay` ein.
+- [ ] **Freeze:** Simulation für alle gemeinsam pausieren, serverseitig gesteuert. Der Server hört auf zu publizieren, Late Joiner bekommen den letzten Frame schon heute. Ein Zustand „eingefroren“ muss mit übertragen werden (Anzeige auf den Brillen).

@@ -31,7 +31,7 @@ $ProgressPreference = "SilentlyContinue"
 $repo = Split-Path -Parent $PSScriptRoot
 $project = Join-Path $repo "godot"
 $sdk = Join-Path $env:LOCALAPPDATA "Android\Sdk"
-$tmp = Join-Path $env:TEMP "matlab_commtest_setup"
+$tmp = Join-Path $env:TEMP "spatial_insights_setup"
 New-Item -ItemType Directory -Force $tmp | Out-Null
 
 if (Get-Process | Where-Object { $_.ProcessName -like "Godot*" }) {
@@ -140,4 +140,4 @@ if (Test-Path $settings) {
 
 Write-Host "`nFertig. Export per Kommandozeile (aus dem Repo-Ordner):"
 Write-Host "  `$env:JAVA_HOME = `"$jdk`""
-Write-Host '  Godot --headless --path godot --export-debug "Vive_LBE" build/vive_lbe.apk'
+Write-Host '  Godot --headless --path godot --export-debug "Vive_LBE" build/spatial_insights_lbe.apk'

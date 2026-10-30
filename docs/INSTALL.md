@@ -1,6 +1,6 @@
 # Install and Configuration
 
-Diese Anleitung richtet MatLab_CommTest auf einem neuen Windows-Rechner so ein, dass das Godot-Projekt läuft und als APK für die HTC Vive Focus 3 oder Focus Vision exportiert werden kann. Das Godot-Projekt liegt im Ordner `godot/`.
+Diese Anleitung richtet Spatial_Insights auf einem neuen Windows-Rechner so ein, dass das Godot-Projekt läuft und als APK für die HTC Vive Focus 3 oder Focus Vision exportiert werden kann. Das Godot-Projekt liegt im Ordner `godot/`.
 
 ## Auf einem neuen Rechner
 
@@ -8,7 +8,7 @@ Diese Anleitung richtet MatLab_CommTest auf einem neuen Windows-Rechner so ein, 
 2. **Git installieren** und das Repo klonen:
 
 ```powershell
-git clone https://github.com/FutureRealitiesLab/MatLab_CommTest.git
+git clone https://github.com/FutureRealitiesLab/Spatial_Insights.git
 ```
 
 3. **Setup-Skript ausführen.** Godot muss dabei geschlossen sein. PowerShell im Repo-Ordner öffnen:
@@ -43,11 +43,11 @@ $env:JAVA_HOME = "C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot"
 ```
 
 ```powershell
-Godot --headless --path godot --export-debug "Vive_LBE" build/vive_lbe.apk
+Godot --headless --path godot --export-debug "Vive_LBE" build/spatial_insights_lbe.apk
 ```
 
 ```powershell
-adb install -r godot/build/vive_lbe.apk
+adb install -r godot/build/spatial_insights_lbe.apk
 ```
 
    Alternativ im Editor: *Projekt → Exportieren*. Die APKs sind Debug-Builds mit dem Godot-Debug-Keystore und landen nicht im Repo. Nach einer Änderung an Server-IP, Raumgröße oder Drehung muss die APK neu exportiert werden.

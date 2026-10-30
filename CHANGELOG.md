@@ -13,6 +13,7 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/1.1.0/). Der Branch
 - `docs/plan.md` mit Umsetzungsstand und TODO-Liste, `docs/ai-chat-log.md`, dieser Changelog.
 
 ### Geändert
+- Umbenennung MatLab_CommTest → **Spatial Insights**: Repo `Spatial_Insights`, Projekt- und App-Name, APK-Namen `spatial_insights_*.apk`, `package/unique_name` `org.spatialinsights.viewer` (alte App auf den Brillen deinstallieren).
 - Raum 4 × 8 m, Rotation `-90` (entspricht der alten Content-Drehung 90, Vorzeichen auf der Brille noch zu prüfen) über die Situs-Project-Settings.
 - Server-IP steht in `project.godot` (`situs_core/network/server_ip`), nicht in einer Datei.
 - Presets: `Vive_LBE` als Run-Ziel, `export_presets.cfg` im Godot-4.7-Format neu geschrieben.
