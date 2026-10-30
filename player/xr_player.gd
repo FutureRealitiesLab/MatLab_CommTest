@@ -29,14 +29,16 @@ const SEND_RATE: float = 0.05
 ## Ein/Aus über Project Settings → Situs Core → Avatar → Jump Enabled.
 @export var jump_crouch_drop: float = 0.4
 ## Mindest-Steiggeschwindigkeit des Kopfes in m/s
-@export var jump_speed: float = 1.5
+@export var jump_speed: float = 1.3
 ## Pause nach einem Sprung in Sekunden
 @export var jump_cooldown: float = 3.0
+## Meldet Hocke, Sprung und Standhöhe im Log (adb logcat), zum Einstellen der Schwellen
+@export var jump_debug: bool = true
 
 var _send_timer: float = 0.0
 var _jump_baseline: float = -1.0   # normale Kopfhöhe (langsam nachgeführt)
-var _jump_prev_h: float = 0.0
-var _jump_vy: float = 0.0
+var _jump_clock: float = 0.0
+var _jump_hist: Array = []   # Vector2(Zeit, Höhe) der letzten 0.3 s
 var _jump_crouched: bool = false
 var _jump_crouch_t: float = 0.0
 var _jump_crouch_min: float = 0.0
@@ -72,44 +74,71 @@ func _on_right_stick(_action: String, value: Vector2) -> void:
 	_stick_r = value
 
 
+func _process(delta: float) -> void:
+	_detect_jump(delta)  # pro gerendertem Bild: so oft wie die Kopfpose neu kommt
+
+
 func _physics_process(delta: float) -> void:
 	_send_timer += delta
 	if _send_timer >= SEND_RATE:
 		_send_timer = 0.0
 		_broadcast_position()
 	_do_locomotion(delta)
-	_detect_jump(delta)
 
 
-## Hocke, dann Hochspringen erkennen (Kopfhöhe im Tracking-Raum, nur Auswertung der Höhe).
+## Hocke, dann Hochspringen erkennen. Ausgewertet wird nur die Kopfhöhe relativ zur
+## normalen Standhöhe, unabhängig davon, ob der Tracking-Raum am Boden oder am Kopf
+## beginnt. Die Geschwindigkeit wird über ca. 0.2 s gemittelt (ein Tracking-Ausreißer
+## löst nichts aus).
 func _detect_jump(delta: float) -> void:
 	if delta <= 0.0 or not SitusSettings.get_jump_enabled():
 		return
 	var cam := $XRCamera3D as XRCamera3D
+	if cam.position.length() < 0.01:
+		return  # noch kein Tracking
+	_jump_clock += delta
 	var h: float = cam.position.y
-	_jump_vy = lerpf(_jump_vy, (h - _jump_prev_h) / delta, 0.5)
-	_jump_prev_h = h
+	_jump_hist.append(Vector2(_jump_clock, h))
+	while _jump_hist.size() > 1 and _jump_clock - _jump_hist[0].x > 0.3:
+		_jump_hist.pop_front()
+	var vy := 0.0
+	for e: Vector2 in _jump_hist:
+		if _jump_clock - e.x <= 0.22:
+			vy = (h - e.y) / maxf(_jump_clock - e.x, 0.05)
+			break
 	_jump_cool = maxf(0.0, _jump_cool - delta)
+
 	if _jump_baseline < 0.0:
-		if h > 0.8:
+		if _jump_clock > 1.5:
 			_jump_baseline = h
+			_jump_log("Standhöhe gesetzt", h, vy)
 		return
+
 	if not _jump_crouched:
 		if h < _jump_baseline - jump_crouch_drop:
 			_jump_crouched = true
 			_jump_crouch_t = 0.0
 			_jump_crouch_min = h
-		elif absf(_jump_vy) < 0.3:
+			_jump_log("Hocke erkannt", h, vy)
+		elif absf(vy) < 0.3:
 			_jump_baseline = lerpf(_jump_baseline, h, 1.0 - exp(-delta / 3.0))
 		return
+
 	_jump_crouch_t += delta
 	_jump_crouch_min = minf(_jump_crouch_min, h)
-	if _jump_vy > jump_speed and h > _jump_crouch_min + 0.15 and _jump_cool <= 0.0:
+	if vy > jump_speed and h > _jump_crouch_min + 0.2 and _jump_cool <= 0.0:
 		_jump_crouched = false
 		_jump_cool = jump_cooldown
+		_jump_log("SPRUNG", h, vy)
 		NetworkManager.send_jump()
 	elif h > _jump_baseline - 0.15 or _jump_crouch_t > 2.5:
 		_jump_crouched = false  # wieder aufgestanden oder zu lange unten
+		_jump_log("Hocke beendet", h, vy)
+
+
+func _jump_log(what: String, h: float, vy: float) -> void:
+	if jump_debug:
+		print("[Sprung] %s: Höhe %.2f, Standhöhe %.2f, v %.2f m/s" % [what, h, _jump_baseline, vy])
 
 
 func _do_locomotion(delta: float) -> void:
