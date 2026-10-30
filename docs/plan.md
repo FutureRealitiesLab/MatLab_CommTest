@@ -90,11 +90,20 @@ Im Code vorhanden und per Headless-Test geprüft (Server + Late-Join-Client mit 
 
 Auf echter Hardware bestätigt (2026-10-30): APK läuft auf der Brille, Verbindung zum Server über die LAN-IP (`situs_core/network/server_ip`), MATLAB-Daten kommen im Netzwerk an, die andere Brille ist sichtbar.
 
-**Noch nicht geprüft:** Rotationsvorzeichen, Android-Override der IP, Betrieb mit 4 und 8 Brillen, Messwerte (Daten-Hz, RTT, GPU-Zeit).
+Auf der Brille bestätigt (2026-10-30, zweiter Test): Controller als Quader in Spielerfarbe, lineare Schleppe, Körpersprung. Freeze am Server getestet, läuft.
+
+**Noch nicht geprüft:** Rotationsvorzeichen, Android-Override der IP, Betrieb mit 4 und 8 Brillen, Messwerte (Daten-Hz, RTT, GPU-Zeit), Freeze auf den Brillen, Sprungtaste B, Gefühl des überarbeiteten Boost-Sprungs.
 
 ## TODO-Liste
 
 Reihenfolge = empfohlene Abarbeitung. Kästchen abhaken, wenn erledigt.
+
+### 0. Test nächste Session
+
+- [ ] **Boost-Sprung** (aus Situs Core, Details in dessen `docs/plan.md`): Körpersprung löst aus. Prüfen, ob der überarbeitete Verlauf (Wurf auf 4 m in 1,2 s, Sinken über 6,8 s, insgesamt rund 8 s) realistisch wirkt. Sprungtaste B löst nicht aus: beim Drücken zeigt ein Hinweis im Blickfeld den Namen der Taste, diesen in *Project Settings → Situs Core → Jump → Button* eintragen. Die genaue Flugzeit aus der Anforderung war abgeschnitten, 8 s sind angenommen.
+- [ ] Zweite Brille: Ringsäule beim Sprung (Lücken, Ringanzahl), Körper bleibt am Boden.
+- [ ] **Freeze** auf mehreren Brillen prüfen (Schild, Standbild, Late Join während Freeze).
+- [ ] Neu exportieren: alle Brillen brauchen denselben Stand (RPC-Signatur geändert), alte App `org.matlabcommtest.viewer*` deinstallieren.
 
 ### 1. PC-Test mit echtem MATLAB
 
@@ -144,7 +153,7 @@ Reihenfolge = empfohlene Abarbeitung. Kästchen abhaken, wenn erledigt.
 
 Die Module entstehen im Repo Situs-Core (`docs/plan.md` dort) und werden hier als Funktion für die Simulationsdaten eingebunden.
 
-- [ ] Avatar-Paket aus Situs übernehmen: Blickrichtungs-Würfel, Controller als Quader, bessere Schleppe.
+- [x] Avatar-Paket aus Situs übernommen (per Subtree von `dist`): Kopfkugel mit Brillen-Würfel, Controller als Quader in Spielerfarbe, lineare Schleppe, Farbverlauf, Boost-Sprung. Offen: Explodierender Ring (Situs-Plan).
 - [ ] **Simulationskörper greifen, skalieren, rotieren und repositionieren.** Transformation muss für alle Brillen synchron sein und darf den Datenstrom von MATLAB nicht stören.
 - [ ] **Kollaboratives Sketching** im selben Raum, Striche an alle Brillen.
 - [ ] Danach: `git subtree pull` auf den neuen Situs-Stand.
@@ -171,7 +180,7 @@ Entscheidung (2026-10-30): **ein Projekt, ein `main`, zwei Einstiege.** Keine ge
 - [x] GitHub-Repo umbenannt (`Spatial_Insights`), `origin` angepasst.
 - [x] Godot-Projektname, App-Name, APK-Namen, `package/unique_name` (`org.spatialinsights.viewer`, `.lbe`), README, INSTALL, Setup-Skript.
 - [ ] **Auf allen Brillen die alte App deinstallieren** (`org.matlabcommtest.viewer*`), weil Android die neue `unique_name` als andere App behandelt.
-- [ ] Notion-Seite *Spatial Insights* (Repo-Links, Namen) anpassen.
+- [x] Notion-Seite *Spatial Insights* (Repo-Links, Namen, MATLAB statt Python) angepasst.
 - [ ] Lokale Klone: `git remote set-url origin https://github.com/FutureRealitiesLab/Spatial_Insights.git`.
 
 ### 11. Neue Funktionen
@@ -181,5 +190,5 @@ Entscheidung (2026-10-30): **ein Projekt, ein `main`, zwei Einstiege.** Keine ge
   - Quellenauswahl: *Livestream* oder *Buffer-File*. Bei *Buffer-File* öffnet ein Datei-Dialog die Auswahl.
   - Das Abspielen speist wie ein UDP-Empfang in `simulation_relay` ein, die Brillen merken keinen Unterschied (Late Join, Datenkanal wie gehabt).
   - Muss auch im PC-Solo-Modus laufen. Idee: PC-Solo = lokaler Server mit lokalem Spieler, dann gibt es nur einen Einspeisepunkt.
-- [x] **Freeze:** Leertaste oder Button am Server hält die Simulation für alle gemeinsam an (`SimulationRelay.set_frozen()`). Der Server verteilt keine neuen Frames, der Zustand geht per RPC an alle Brillen, ein Schild „EINGEFROREN“ schwebt über dem Raum, Late Joiner bekommen Zustand und letzten Frame. Auf der Brille noch zu prüfen. Bekannte Grenze: Ein Frame, der beim Einfrieren noch unterwegs ist, kann auf einzelnen Brillen um einen Frame abweichen.
+- [x] **Freeze:** Leertaste oder Button am Server hält die Simulation für alle gemeinsam an (`SimulationRelay.set_frozen()`). Der Server verteilt keine neuen Frames, der Zustand geht per RPC an alle Brillen, ein Schild „EINGEFROREN“ schwebt über dem Raum, Late Joiner bekommen Zustand und letzten Frame. Am Server getestet, läuft. Auf den Brillen noch zu prüfen. Bekannte Grenze: Ein Frame, der beim Einfrieren noch unterwegs ist, kann auf einzelnen Brillen um einen Frame abweichen.
 - [ ] **PC-Solo als lokaler Server mit First-Person-Ansicht** prüfen (statt eigener `desktop_main.tscn`): Situs bringt den FPS-Spieler (`player/fps_player.gd`, Startmodus *Als Spieler starten*) schon mit. Es fehlt die Verknüpfung mit Server-Rolle und Orbit-Ansicht. Siehe auch Punkt 9.
