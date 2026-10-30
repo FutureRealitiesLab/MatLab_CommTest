@@ -10,6 +10,8 @@ extends XROrigin3D
 ##   Thumbstick X       → Links/Rechts-Rotation (beide Controller, max-Betrag gewinnt)
 
 
+const SitusSettings := preload("res://addons/situs_core/core/situs_settings.gd")
+
 ## Sendeintervall in Sekunden (20 Hz)
 const SEND_RATE: float = 0.05
 
@@ -22,7 +24,23 @@ const SEND_RATE: float = 0.05
 ## Drehgeschwindigkeit (Grad/s)
 @export var rotation_speed: float = 60.0
 
+## Sprung-Erkennung: Hocke (Kopf mindestens so viel unter der normalen Höhe), dann
+## schnelles Aufrichten. Wird an die anderen gemeldet (Avatar fliegt, Geist bleibt).
+## Ein/Aus über Project Settings → Situs Core → Avatar → Jump Enabled.
+@export var jump_crouch_drop: float = 0.4
+## Mindest-Steiggeschwindigkeit des Kopfes in m/s
+@export var jump_speed: float = 1.5
+## Pause nach einem Sprung in Sekunden
+@export var jump_cooldown: float = 3.0
+
 var _send_timer: float = 0.0
+var _jump_baseline: float = -1.0   # normale Kopfhöhe (langsam nachgeführt)
+var _jump_prev_h: float = 0.0
+var _jump_vy: float = 0.0
+var _jump_crouched: bool = false
+var _jump_crouch_t: float = 0.0
+var _jump_crouch_min: float = 0.0
+var _jump_cool: float = 0.0
 var _stick_l: Vector2 = Vector2.ZERO
 var _stick_r: Vector2 = Vector2.ZERO
 
@@ -60,6 +78,38 @@ func _physics_process(delta: float) -> void:
 		_send_timer = 0.0
 		_broadcast_position()
 	_do_locomotion(delta)
+	_detect_jump(delta)
+
+
+## Hocke, dann Hochspringen erkennen (Kopfhöhe im Tracking-Raum, nur Auswertung der Höhe).
+func _detect_jump(delta: float) -> void:
+	if delta <= 0.0 or not SitusSettings.get_jump_enabled():
+		return
+	var cam := $XRCamera3D as XRCamera3D
+	var h: float = cam.position.y
+	_jump_vy = lerpf(_jump_vy, (h - _jump_prev_h) / delta, 0.5)
+	_jump_prev_h = h
+	_jump_cool = maxf(0.0, _jump_cool - delta)
+	if _jump_baseline < 0.0:
+		if h > 0.8:
+			_jump_baseline = h
+		return
+	if not _jump_crouched:
+		if h < _jump_baseline - jump_crouch_drop:
+			_jump_crouched = true
+			_jump_crouch_t = 0.0
+			_jump_crouch_min = h
+		elif absf(_jump_vy) < 0.3:
+			_jump_baseline = lerpf(_jump_baseline, h, 1.0 - exp(-delta / 3.0))
+		return
+	_jump_crouch_t += delta
+	_jump_crouch_min = minf(_jump_crouch_min, h)
+	if _jump_vy > jump_speed and h > _jump_crouch_min + 0.15 and _jump_cool <= 0.0:
+		_jump_crouched = false
+		_jump_cool = jump_cooldown
+		NetworkManager.send_jump()
+	elif h > _jump_baseline - 0.15 or _jump_crouch_t > 2.5:
+		_jump_crouched = false  # wieder aufgestanden oder zu lange unten
 
 
 func _do_locomotion(delta: float) -> void:
@@ -106,4 +156,16 @@ func _broadcast_position() -> void:
 	if not is_instance_valid(cam):
 		return
 	var body_floor := Vector3(cam.global_position.x, global_position.y, cam.global_position.z)
-	NetworkManager.send_player_state(body_floor, cam.global_position, cam.global_rotation)
+	var hands := PackedVector3Array()
+	var mask := 0
+	for i in 2:
+		var ctrl := get_node_or_null("LeftHand" if i == 0 else "RightHand") as XRController3D
+		var tracked: bool = ctrl != null and ctrl.get_is_active() and ctrl.get_has_tracking_data()
+		if tracked:
+			mask |= 1 << i
+			hands.append(ctrl.global_position)
+			hands.append(ctrl.global_rotation)
+		else:
+			hands.append(Vector3.ZERO)
+			hands.append(Vector3.ZERO)
+	NetworkManager.send_player_state(body_floor, cam.global_position, cam.global_rotation, hands, mask)

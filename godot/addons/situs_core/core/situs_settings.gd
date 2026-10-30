@@ -12,11 +12,13 @@ const SERVER_IP      := "situs_core/network/server_ip"
 const ROOM_WIDTH     := "situs_core/room/width_m"
 const ROOM_LENGTH    := "situs_core/room/length_m"
 const ROOM_ROTATION  := "situs_core/room/rotation_deg"
+const AVATAR_JUMP    := "situs_core/avatar/jump_enabled"
 
 const DEFAULT_SERVER_IP     := "127.0.0.1"
 const DEFAULT_ROOM_WIDTH    := 4.0
 const DEFAULT_ROOM_LENGTH   := 8.0
 const DEFAULT_ROOM_ROTATION := 0.0
+const DEFAULT_AVATAR_JUMP   := true
 
 ## Wird vom Plugin beim Aktivieren registriert, damit die Felder im Editor erscheinen.
 const DEFINITIONS := [
@@ -28,6 +30,8 @@ const DEFINITIONS := [
 		"hint": PROPERTY_HINT_RANGE, "hint_string": "0.5,100,0.1,or_greater,suffix:m"},
 	{"name": ROOM_ROTATION, "type": TYPE_FLOAT, "default": DEFAULT_ROOM_ROTATION,
 		"hint": PROPERTY_HINT_RANGE, "hint_string": "-180,180,0.5,suffix:°"},
+	{"name": AVATAR_JUMP, "type": TYPE_BOOL, "default": DEFAULT_AVATAR_JUMP,
+		"hint": PROPERTY_HINT_NONE, "hint_string": ""},
 ]
 
 
@@ -47,6 +51,11 @@ static func get_room_size() -> Vector2:
 ## Wird auf den XR-Ursprung angewendet. Szenen bleiben unverändert.
 static func get_room_rotation_deg() -> float:
 	return float(ProjectSettings.get_setting(ROOM_ROTATION, DEFAULT_ROOM_ROTATION))
+
+
+## Sprung-Effekt der Avatare (Hocke, dann Hochspringen). Aus = keine Erkennung, keine Anzeige.
+static func get_jump_enabled() -> bool:
+	return bool(ProjectSettings.get_setting(AVATAR_JUMP, DEFAULT_AVATAR_JUMP))
 
 
 ## Legt die Einstellungen mit Typ, Default und Wertebereich im Editor an.
