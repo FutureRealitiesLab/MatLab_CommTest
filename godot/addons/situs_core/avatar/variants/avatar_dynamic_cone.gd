@@ -25,8 +25,9 @@ enum TrailMode { LINEAR, DAMPED }
 @export var trail_mode: TrailMode = TrailMode.LINEAR
 
 ## Responsivität des Bodenpunkts im Modus LINEAR (1/Sekunde, zeitbasiert).
-## 1.0 = sehr träge, 4.0 = flott. Sinnvoller Bereich 1.0 – 6.0.
-@export var lazy_follow_rate: float = 3.0
+## Je kleiner, desto länger die Schleppe: 1.0 = lang (Standard), 3.0 = kurz.
+## Sinnvoller Bereich 0.5 – 6.0.
+@export var lazy_follow_rate: float = 1.0
 
 ## Anzahl der Ringe zwischen Boden und Kopf
 @export var num_rings: int = 8
