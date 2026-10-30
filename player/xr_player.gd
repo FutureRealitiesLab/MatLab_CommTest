@@ -24,24 +24,25 @@ const SEND_RATE: float = 0.05
 ## Drehgeschwindigkeit (Grad/s)
 @export var rotation_speed: float = 60.0
 
-## Sprung-Erkennung: Hocke (Kopf mindestens so viel unter der normalen Höhe), dann
-## schnelles Aufrichten. Wird an die anderen gemeldet (Avatar fliegt, Geist bleibt).
-## Ein/Aus über Project Settings → Situs Core → Avatar → Jump Enabled.
-@export var jump_crouch_drop: float = 0.4
-## Mindest-Steiggeschwindigkeit des Kopfes in m/s
-@export var jump_speed: float = 1.3
+## Sprung-Erkennung über die Kopfhöhe: Der Kopf steigt schnell und fällt gleich wieder.
+## (Aufrichten aus der Hocke oder Verbeugen steigt nur und löst nichts aus.)
+## Wird an die anderen gemeldet (Avatar fliegt, Geist bleibt).
+## Ein/Aus und die zusätzliche Controller-Taste: Project Settings → Situs Core → Avatar.
+## Mindest-Steiggeschwindigkeit des Kopfes in m/s (gemittelt über ca. 0.2 s)
+@export var jump_speed: float = 1.0
+## Mindest-Anstieg des Kopfes in Metern
+@export var jump_min_rise: float = 0.1
 ## Pause nach einem Sprung in Sekunden
-@export var jump_cooldown: float = 3.0
-## Meldet Hocke, Sprung und Standhöhe im Log (adb logcat), zum Einstellen der Schwellen
+@export var jump_cooldown: float = 2.0
+## Meldet Anstieg, Sprung und Taste im Log (adb logcat -s godot), zum Einstellen der Schwellen
 @export var jump_debug: bool = true
 
 var _send_timer: float = 0.0
-var _jump_baseline: float = -1.0   # normale Kopfhöhe (langsam nachgeführt)
 var _jump_clock: float = 0.0
-var _jump_hist: Array = []   # Vector2(Zeit, Höhe) der letzten 0.3 s
-var _jump_crouched: bool = false
-var _jump_crouch_t: float = 0.0
-var _jump_crouch_min: float = 0.0
+var _jump_hist: Array = []   # Vector2(Zeit, Höhe) der letzten 1 s
+var _jump_rising: bool = false
+var _jump_rise_t: float = 0.0
+var _jump_peak: float = 0.0
 var _jump_cool: float = 0.0
 var _stick_l: Vector2 = Vector2.ZERO
 var _stick_r: Vector2 = Vector2.ZERO
@@ -61,6 +62,12 @@ func _on_button(button_name: String) -> void:
 	# Standalone nur aktivieren, wenn KEINE Server-Verbindung besteht
 	if not NetworkManager.client_connected_flag and not SceneManager.standalone_mode:
 		SceneManager.activate_standalone()
+	# Zusätzlicher Sprung-Auslöser: Controller-Taste (Standard B/Y), einstellbar in den Project Settings
+	if SitusSettings.get_jump_enabled() and button_name == SitusSettings.get_jump_button() \
+			and _jump_cool <= 0.0 and NetworkManager.client_connected_flag:
+		_jump_cool = jump_cooldown
+		_jump_log("Taste " + button_name, 0.0, 0.0)
+		NetworkManager.send_jump()
 	# Secondary Button (B/Y) → nächste Szene (nur im Standalone-Modus; im Multiplayer steuert der Server)
 	if button_name == "by_button" and SceneManager.standalone_mode:
 		SceneManager.advance_scene()
@@ -86,10 +93,9 @@ func _physics_process(delta: float) -> void:
 	_do_locomotion(delta)
 
 
-## Hocke, dann Hochspringen erkennen. Ausgewertet wird nur die Kopfhöhe relativ zur
-## normalen Standhöhe, unabhängig davon, ob der Tracking-Raum am Boden oder am Kopf
-## beginnt. Die Geschwindigkeit wird über ca. 0.2 s gemittelt (ein Tracking-Ausreißer
-## löst nichts aus).
+## Sprung am Kopf erkennen: schneller Anstieg, dann innerhalb von 0.7 s wieder Abstieg.
+## Ausgewertet wird nur die Höhenänderung der Kopfpose (egal, ob der Tracking-Raum am
+## Boden oder am Kopf beginnt), pro gerendertem Bild.
 func _detect_jump(delta: float) -> void:
 	if delta <= 0.0 or not SitusSettings.get_jump_enabled():
 		return
@@ -97,48 +103,42 @@ func _detect_jump(delta: float) -> void:
 	if cam.position.length() < 0.01:
 		return  # noch kein Tracking
 	_jump_clock += delta
+	_jump_cool = maxf(0.0, _jump_cool - delta)
 	var h: float = cam.position.y
 	_jump_hist.append(Vector2(_jump_clock, h))
-	while _jump_hist.size() > 1 and _jump_clock - _jump_hist[0].x > 0.3:
+	while _jump_hist.size() > 1 and _jump_clock - _jump_hist[0].x > 1.0:
 		_jump_hist.pop_front()
 	var vy := 0.0
+	var rise := 0.0
 	for e: Vector2 in _jump_hist:
 		if _jump_clock - e.x <= 0.22:
 			vy = (h - e.y) / maxf(_jump_clock - e.x, 0.05)
+			rise = h - e.y
 			break
-	_jump_cool = maxf(0.0, _jump_cool - delta)
 
-	if _jump_baseline < 0.0:
-		if _jump_clock > 1.5:
-			_jump_baseline = h
-			_jump_log("Standhöhe gesetzt", h, vy)
+	if not _jump_rising:
+		if vy > jump_speed and rise > jump_min_rise and _jump_cool <= 0.0:
+			_jump_rising = true
+			_jump_rise_t = 0.0
+			_jump_peak = h
+			_jump_log("Anstieg", h, vy)
 		return
 
-	if not _jump_crouched:
-		if h < _jump_baseline - jump_crouch_drop:
-			_jump_crouched = true
-			_jump_crouch_t = 0.0
-			_jump_crouch_min = h
-			_jump_log("Hocke erkannt", h, vy)
-		elif absf(vy) < 0.3:
-			_jump_baseline = lerpf(_jump_baseline, h, 1.0 - exp(-delta / 3.0))
-		return
-
-	_jump_crouch_t += delta
-	_jump_crouch_min = minf(_jump_crouch_min, h)
-	if vy > jump_speed and h > _jump_crouch_min + 0.2 and _jump_cool <= 0.0:
-		_jump_crouched = false
+	_jump_rise_t += delta
+	_jump_peak = maxf(_jump_peak, h)
+	if vy < -0.4 and _jump_peak - h > 0.04:
+		_jump_rising = false
 		_jump_cool = jump_cooldown
 		_jump_log("SPRUNG", h, vy)
 		NetworkManager.send_jump()
-	elif h > _jump_baseline - 0.15 or _jump_crouch_t > 2.5:
-		_jump_crouched = false  # wieder aufgestanden oder zu lange unten
-		_jump_log("Hocke beendet", h, vy)
+	elif _jump_rise_t > 0.7:
+		_jump_rising = false  # nur aufgerichtet, kein Sprung
+		_jump_log("kein Abstieg, verworfen", h, vy)
 
 
 func _jump_log(what: String, h: float, vy: float) -> void:
 	if jump_debug:
-		print("[Sprung] %s: Höhe %.2f, Standhöhe %.2f, v %.2f m/s" % [what, h, _jump_baseline, vy])
+		print("[Sprung] %s: Höhe %.2f, v %.2f m/s" % [what, h, vy])
 
 
 func _do_locomotion(delta: float) -> void:

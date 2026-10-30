@@ -13,12 +13,14 @@ const ROOM_WIDTH     := "situs_core/room/width_m"
 const ROOM_LENGTH    := "situs_core/room/length_m"
 const ROOM_ROTATION  := "situs_core/room/rotation_deg"
 const AVATAR_JUMP    := "situs_core/avatar/jump_enabled"
+const AVATAR_JUMP_BUTTON := "situs_core/avatar/jump_button"
 
 const DEFAULT_SERVER_IP     := "127.0.0.1"
 const DEFAULT_ROOM_WIDTH    := 4.0
 const DEFAULT_ROOM_LENGTH   := 8.0
 const DEFAULT_ROOM_ROTATION := 0.0
 const DEFAULT_AVATAR_JUMP   := true
+const DEFAULT_AVATAR_JUMP_BUTTON := "by_button"
 
 ## Wird vom Plugin beim Aktivieren registriert, damit die Felder im Editor erscheinen.
 const DEFINITIONS := [
@@ -32,6 +34,8 @@ const DEFINITIONS := [
 		"hint": PROPERTY_HINT_RANGE, "hint_string": "-180,180,0.5,suffix:°"},
 	{"name": AVATAR_JUMP, "type": TYPE_BOOL, "default": DEFAULT_AVATAR_JUMP,
 		"hint": PROPERTY_HINT_NONE, "hint_string": ""},
+	{"name": AVATAR_JUMP_BUTTON, "type": TYPE_STRING, "default": DEFAULT_AVATAR_JUMP_BUTTON,
+		"hint": PROPERTY_HINT_ENUM, "hint_string": "by_button,ax_button,trigger_click,grip_click,none"},
 ]
 
 
@@ -56,6 +60,12 @@ static func get_room_rotation_deg() -> float:
 ## Sprung-Effekt der Avatare (Hocke, dann Hochspringen). Aus = keine Erkennung, keine Anzeige.
 static func get_jump_enabled() -> bool:
 	return bool(ProjectSettings.get_setting(AVATAR_JUMP, DEFAULT_AVATAR_JUMP))
+
+
+## Controller-Taste, die den Sprung-Effekt ebenfalls auslöst (Aktionsname der Action Map):
+## by_button = B (rechts) und Y (links), ax_button = A und X, none = nur die Körperbewegung.
+static func get_jump_button() -> String:
+	return str(ProjectSettings.get_setting(AVATAR_JUMP_BUTTON, DEFAULT_AVATAR_JUMP_BUTTON))
 
 
 ## Legt die Einstellungen mit Typ, Default und Wertebereich im Editor an.
